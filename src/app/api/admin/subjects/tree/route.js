@@ -1,41 +1,32 @@
 import { supabase } from "@/lib/supabaseAdmin";
 import { ensureAdmin } from "@/lib/verifyToken";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(req) {
   try {
-    // 🔒 Verify admin
-    const admin = ensureAdmin(req);
+    ensureAdmin(req);
     const url = new URL(req.url);
     const subjectId = url.searchParams.get("subject_id");
     const chapterId = url.searchParams.get("chapter_id");
     const topicId = url.searchParams.get("topic_id");
 
-    // ✅ Fetch all top-level entities
-    const { data: subjects, error: subjErr } = await supabase
-      .from("subjects")
-      .select("*")
-      .order("name", { ascending: true });
-    if (subjErr) throw subjErr;
+    // ✅ Fetch base tables
+    const [{ data: subjects }, { data: chapters }, { data: topics }] =
+      await Promise.all([
+        supabase.from("subjects").select("*").order("name", { ascending: true }),
+        supabase.from("chapters").select("*").order("name", { ascending: true }),
+        supabase.from("topics").select("*").order("name", { ascending: true }),
+      ]);
 
-    const { data: chapters, error: chapErr } = await supabase
-      .from("chapters")
-      .select("*")
-      .order("name", { ascending: true });
-    if (chapErr) throw chapErr;
-
-    const { data: topics, error: topErr } = await supabase
-      .from("topics")
-      .select("*")
-      .order("name", { ascending: true });
-    if (topErr) throw topErr;
-
-    // ✅ Build filter for questions
+    // ✅ Build filters
     let qFilter = {};
     if (topicId) qFilter.topic_id = topicId;
     else if (chapterId) qFilter.chapter_id = chapterId;
     else if (subjectId) qFilter.subject_id = subjectId;
 
-    // ✅ Fetch ALL questions (no pagination)
+    // ✅ Fetch questions
     const { data: questions, error: qErr } = await supabase
       .from("questions")
       .select("*")
@@ -43,45 +34,41 @@ export async function GET(req) {
       .order("created_at", { ascending: false });
     if (qErr) throw qErr;
 
-    // ✅ Fetch options & correct answers for all questions
-    const questionIds = questions.map((q) => q.id);
-    let options = [];
-    let corrects = [];
+    console.log("✅ Questions fetched:", questions.map((q) => q.id));
 
-    if (questionIds.length > 0) {
-      const { data: optData, error: optErr } = await supabase
-        .from("question_options")
-        .select("*")
-        .in("question_id", questionIds);
-      if (optErr) throw optErr;
-      options = optData || [];
+    // ✅ Get all options and correct answers without relying on .in()
+    const { data: allOptions, error: optErr } = await supabase
+      .from("question_options")
+      .select("id, question_id, option_key, content")
+      .order("option_key", { ascending: true });
+    if (optErr) throw optErr;
 
-      const { data: corrData, error: corrErr } = await supabase
-        .from("correct_answers")
-        .select("*")
-        .in("question_id", questionIds);
-      if (corrErr) throw corrErr;
-      corrects = corrData || [];
-    }
+    const { data: allCorrects, error: corrErr } = await supabase
+      .from("correct_answers")
+      .select("question_id, correct_key");
+    if (corrErr) throw corrErr;
 
-    // ✅ Combine question + options + correct answer
+    console.log("✅ Options fetched:", allOptions.length);
+
+    // ✅ Merge manually (ensures all questions get their options)
     const questionsWithDetails = questions.map((q) => ({
       ...q,
-      options: options
-        .filter((opt) => opt.question_id === q.id)
+      options: allOptions
+        .filter((opt) => String(opt.question_id) === String(q.id))
         .sort((a, b) => a.option_key.localeCompare(b.option_key)),
       correct_option:
-        corrects.find((c) => c.question_id === q.id)?.correct_key || null,
+        allCorrects.find((c) => String(c.question_id) === String(q.id))
+          ?.correct_key || null,
     }));
 
-    // ✅ Build hierarchical tree
-    const tree = subjects.map((subject) => ({
+    // ✅ Build tree
+    const tree = (subjects || []).map((subject) => ({
       ...subject,
-      chapters: chapters
+      chapters: (chapters || [])
         .filter((c) => c.subject_id === subject.id)
         .map((chapter) => ({
           ...chapter,
-          topics: topics
+          topics: (topics || [])
             .filter((t) => t.chapter_id === chapter.id)
             .map((topic) => ({
               ...topic,
@@ -95,12 +82,19 @@ export async function GET(req) {
         })),
     }));
 
+    // ✅ Response
     return new Response(
-      JSON.stringify({ success: true, tree }),
+      JSON.stringify({
+        success: true,
+        message: "Data fetched successfully",
+        total_questions: questionsWithDetails.length,
+        total_options: allOptions.length,
+        tree,
+      }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (err) {
-    console.error("Subjects API error:", err.message);
+    console.error("❌ Tree API error:", err);
     return new Response(
       JSON.stringify({ success: false, error: err.message }),
       { status: 400, headers: { "Content-Type": "application/json" } }

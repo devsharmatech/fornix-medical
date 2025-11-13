@@ -17,3 +17,27 @@ export async function POST(req) {
     return new Response(JSON.stringify({ success: false, error: err.message }), { status: 400 });
   }
 }
+export async function GET(req) {
+  try {
+    ensureAdmin(req);
+    const url = new URL(req.url);
+    const chapterId = url.searchParams.get("chapter_id");
+    if (!chapterId) throw new Error("chapter_id required");
+
+    const { data, error } = await supabase
+      .from("topics")
+      .select("*")
+      .eq("chapter_id", chapterId)
+      .order("name");
+    if (error) throw error;
+
+    return new Response(JSON.stringify({ success: true, data }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ success: false, error: err.message }), {
+      status: 500,
+    });
+  }
+}

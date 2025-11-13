@@ -149,6 +149,8 @@ export default function BulkUploadPage() {
             topic: normalized.topic || normalized.topic_name || "",
             question_text:
               normalized.question_text || normalized.question || "",
+            question_image_url:
+              normalized.question_image_url || normalized.question_image || "",
             option_a: normalized.option_a || normalized.option1 || "",
             option_b: normalized.option_b || normalized.option2 || "",
             option_c: normalized.option_c || normalized.option3 || "",
@@ -206,6 +208,8 @@ export default function BulkUploadPage() {
     
     try {
       const clean = rows.map(({ question_no, ...rest }) => rest);
+      // console.log("🚀 Uploading rows:", clean);
+      
       const res = await fetch("/api/admin/questions/bulk-upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -241,6 +245,7 @@ export default function BulkUploadPage() {
         chapter: "Algebra",
         topic: "Linear Equations",
         question_text: "What is the solution to 2x + 3 = 11?",
+        question_image_url: "https://example.com/image.jpg",
         option_a: "x = 4",
         option_b: "x = 5",
         option_c: "x = 6",

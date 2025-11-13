@@ -52,18 +52,13 @@ export default function Sidebar({
   const menuItems = isAdmin
     ? [
         { name: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard" },
-        { name: "Subjects", icon: BookOpen, href: "/admin/subjects" },
         { name: "Doctors", icon: Users, href: "/admin/doctors" },
-        // { name: "Reports", icon: BarChart3, href: "/admin/reports" },
-        // { name: "Documents", icon: FileText, href: "/admin/documents" },
+        { name: "Subjects", icon: BarChart3, href: "/admin/questions" },
         { name: "Bulk Upload", icon: Upload, href: "/admin/bulk-upload" },
-        // { name: "Settings", icon: Settings, href: "/admin/settings" },
       ]
     : [
         { name: "Dashboard", icon: LayoutDashboard, href: "/doctor/dashboard" },
-        { name: "My Subjects", icon: BookOpen, href: "/doctor/subjects" },
-        // { name: "Reports", icon: BarChart3, href: "/doctor/reports" },
-        // { name: "Settings", icon: Settings, href: "/doctor/settings" },
+        { name: "My Subjects", icon: BookOpen, href: "/doctor/questions" },
       ];
 
   const handleLogout = () => {

@@ -13,6 +13,7 @@ export async function POST(req) {
       question_text,
       explanation = null,
       image_url = null,
+      question_image_url = null,
       options = [], 
       correct_key = null,
     } = body;
@@ -22,7 +23,7 @@ export async function POST(req) {
 
     // insert question
     const { data: q, error: qErr } = await supabase.from("questions").insert([{
-      subject_id, chapter_id, topic_id, question_text, explanation, image_url,
+      subject_id, chapter_id, topic_id, question_text, explanation, image_url,question_image_url,
       created_by: doctor.sub || doctor.id || null,
       updated_by: doctor.sub || doctor.id || null,
     }]).select().single();

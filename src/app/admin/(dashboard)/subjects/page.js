@@ -12,20 +12,28 @@ import {
   Eye,
   FileQuestion,
   Save,
+  CheckCircle,
+  XCircle,
+  Clock,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast, { Toaster } from "react-hot-toast";
 
-/* ----------------------- Small UI helpers ----------------------- */
+/* ============================
+   Small UI helpers & components
+   ============================ */
 
-function IconButton({ children, title, onClick, className, disabled }) {
+function IconButton({ children, title, onClick, className = "", disabled }) {
   return (
     <button
+      type="button"
       title={title}
       disabled={disabled}
       onClick={onClick}
       className={`inline-flex items-center gap-2 px-2 py-1 text-sm rounded transition-all ${className} ${
-        disabled ? "opacity-60 pointer-events-none" : "hover:brightness-95 active:scale-95"
+        disabled
+          ? "opacity-60 pointer-events-none"
+          : "hover:brightness-95 active:scale-95"
       }`}
     >
       {children}
@@ -33,19 +41,46 @@ function IconButton({ children, title, onClick, className, disabled }) {
   );
 }
 
+function StatusBadge({ status = "pending" }) {
+  const base =
+    "inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border";
+  if (status === "approved")
+    return (
+      <span className={`${base} bg-green-100 text-green-700 border-green-300`}>
+        <CheckCircle size={12} /> Approved
+      </span>
+    );
+  if (status === "rejected")
+    return (
+      <span className={`${base} bg-red-100 text-red-700 border-red-300`}>
+        <XCircle size={12} /> Rejected
+      </span>
+    );
+  return (
+    <span className={`${base} bg-yellow-100 text-yellow-700 border-yellow-300`}>
+      <Clock size={12} /> Pending
+    </span>
+  );
+}
+
+/* Modal component */
 function Modal({ open, onClose, title, children }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/60 p-4">
       <motion.div
-        initial={{ y: -16, opacity: 0 }}
+        initial={{ y: -12, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: -8, opacity: 0 }}
         className="w-full max-w-2xl bg-white dark:bg-gray-900 rounded-lg shadow-lg p-6"
       >
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">{title}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-red-500 transition-colors">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-500 hover:text-red-500"
+          >
             ✕
           </button>
         </div>
@@ -55,7 +90,37 @@ function Modal({ open, onClose, title, children }) {
   );
 }
 
-/* ----------------------- Forms ----------------------- */
+/* Small form inputs */
+function TextInput({ label, value, onChange, placeholder = "" }) {
+  return (
+    <label className="block">
+      <div className="text-sm font-medium mb-1">{label}</div>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full p-2 border rounded bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      />
+    </label>
+  );
+}
+function TextArea({ label, value, onChange, rows = 3 }) {
+  return (
+    <label className="block">
+      <div className="text-sm font-medium mb-1">{label}</div>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={rows}
+        className="w-full p-2 border rounded bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      />
+    </label>
+  );
+}
+
+/* ============================
+   CRUD Forms (Subject/Chapter/Topic/Question)
+   ============================ */
 
 function SubjectForm({ initial = null, onCancel, onSubmit, saving }) {
   const [name, setName] = useState(initial?.name || "");
@@ -74,38 +139,30 @@ function SubjectForm({ initial = null, onCancel, onSubmit, saving }) {
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <label className="block">
-        <div className="text-sm font-medium mb-1">Subject Name</div>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="w-full p-2 border rounded bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-        />
-      </label>
-
-      <label className="block">
-        <div className="text-sm font-medium mb-1">Description</div>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="w-full p-2 border rounded bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-          rows={3}
-        />
-      </label>
-
-      <div className="flex justify-end gap-2">
+      <TextInput label="Subject name" value={name} onChange={setName} />
+      <TextArea
+        label="Description"
+        value={description}
+        onChange={setDescription}
+        rows={3}
+      />
+      <div className="flex gap-2 justify-end">
         <button
           type="button"
           onClick={onCancel}
-          className="px-3 py-2 rounded border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          className="px-3 py-2 rounded border"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="px-3 py-2 rounded bg-blue-600 text-white flex items-center gap-2 hover:bg-blue-700 transition-colors"
+          className="px-3 py-2 rounded bg-blue-600 text-white flex items-center gap-2"
         >
-          {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={14} />}{" "}
+          {saving ? (
+            <Loader2 className="animate-spin" size={16} />
+          ) : (
+            <Save size={14} />
+          )}{" "}
           {saving ? "Saving..." : "Save"}
         </button>
       </div>
@@ -113,9 +170,20 @@ function SubjectForm({ initial = null, onCancel, onSubmit, saving }) {
   );
 }
 
-function ChapterForm({ initial = null, parentSubjectId = "", onCancel, onSubmit, saving }) {
+function ChapterForm({
+  initial = null,
+  parentSubjectId = "",
+  onCancel,
+  onSubmit,
+  saving,
+}) {
   const [name, setName] = useState(initial?.name || "");
   const [description, setDescription] = useState(initial?.description || "");
+
+  useEffect(() => {
+    setName(initial?.name || "");
+    setDescription(initial?.description || "");
+  }, [initial]);
 
   const submit = (e) => {
     e.preventDefault();
@@ -129,38 +197,30 @@ function ChapterForm({ initial = null, parentSubjectId = "", onCancel, onSubmit,
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <label className="block">
-        <div className="text-sm font-medium mb-1">Chapter Name</div>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="w-full p-2 border rounded bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-        />
-      </label>
-
-      <label className="block">
-        <div className="text-sm font-medium mb-1">Description</div>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="w-full p-2 border rounded bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-          rows={3}
-        />
-      </label>
-
-      <div className="flex justify-end gap-2">
+      <TextInput label="Chapter name" value={name} onChange={setName} />
+      <TextArea
+        label="Description"
+        value={description}
+        onChange={setDescription}
+        rows={3}
+      />
+      <div className="flex gap-2 justify-end">
         <button
           type="button"
           onClick={onCancel}
-          className="px-3 py-2 rounded border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          className="px-3 py-2 rounded border"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="px-3 py-2 rounded bg-blue-600 text-white flex items-center gap-2 hover:bg-blue-700 transition-colors"
+          className="px-3 py-2 rounded bg-blue-600 text-white flex items-center gap-2"
         >
-          {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={14} />}{" "}
+          {saving ? (
+            <Loader2 className="animate-spin" size={16} />
+          ) : (
+            <Save size={14} />
+          )}{" "}
           {saving ? "Saving..." : "Save"}
         </button>
       </div>
@@ -168,9 +228,20 @@ function ChapterForm({ initial = null, parentSubjectId = "", onCancel, onSubmit,
   );
 }
 
-function TopicForm({ initial = null, parentChapterId = "", onCancel, onSubmit, saving }) {
+function TopicForm({
+  initial = null,
+  parentChapterId = "",
+  onCancel,
+  onSubmit,
+  saving,
+}) {
   const [name, setName] = useState(initial?.name || "");
   const [description, setDescription] = useState(initial?.description || "");
+
+  useEffect(() => {
+    setName(initial?.name || "");
+    setDescription(initial?.description || "");
+  }, [initial]);
 
   const submit = (e) => {
     e.preventDefault();
@@ -184,38 +255,30 @@ function TopicForm({ initial = null, parentChapterId = "", onCancel, onSubmit, s
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <label className="block">
-        <div className="text-sm font-medium mb-1">Topic Name</div>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="w-full p-2 border rounded bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-        />
-      </label>
-
-      <label className="block">
-        <div className="text-sm font-medium mb-1">Description</div>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="w-full p-2 border rounded bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-          rows={3}
-        />
-      </label>
-
-      <div className="flex justify-end gap-2">
+      <TextInput label="Topic name" value={name} onChange={setName} />
+      <TextArea
+        label="Description"
+        value={description}
+        onChange={setDescription}
+        rows={3}
+      />
+      <div className="flex gap-2 justify-end">
         <button
           type="button"
           onClick={onCancel}
-          className="px-3 py-2 rounded border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          className="px-3 py-2 rounded border"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="px-3 py-2 rounded bg-blue-600 text-white flex items-center gap-2 hover:bg-blue-700 transition-colors"
+          className="px-3 py-2 rounded bg-blue-600 text-white flex items-center gap-2"
         >
-          {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={14} />}{" "}
+          {saving ? (
+            <Loader2 className="animate-spin" size={16} />
+          ) : (
+            <Save size={14} />
+          )}{" "}
           {saving ? "Saving..." : "Save"}
         </button>
       </div>
@@ -223,8 +286,17 @@ function TopicForm({ initial = null, parentChapterId = "", onCancel, onSubmit, s
   );
 }
 
-function QuestionForm({ initial = null, parent = {}, onCancel, onSubmit, saving }) {
-  const [question_text, setQuestionText] = useState(initial?.question_text || "");
+/* Question form handles creating/updating question + options + image + correct key + status (set pending by default on save) */
+function QuestionForm({
+  initial = null,
+  parent = {},
+  onCancel,
+  onSubmit,
+  saving,
+}) {
+  const [question_text, setQuestionText] = useState(
+    initial?.question_text || ""
+  );
   const [explanation, setExplanation] = useState(initial?.explanation || "");
   const [image_url, setImageUrl] = useState(initial?.image_url || "");
   const [options, setOptions] = useState(
@@ -239,44 +311,60 @@ function QuestionForm({ initial = null, parent = {}, onCancel, onSubmit, saving 
   );
   const [correct_key, setCorrectKey] = useState(initial?.correct_option || "");
 
-  const updateOptionContent = (key, val) => {
+  useEffect(() => {
+    setQuestionText(initial?.question_text || "");
+    setExplanation(initial?.explanation || "");
+    setImageUrl(initial?.image_url || "");
+    setOptions(
+      initial?.options?.length
+        ? initial.options
+        : [
+            { option_key: "a", content: "" },
+            { option_key: "b", content: "" },
+            { option_key: "c", content: "" },
+            { option_key: "d", content: "" },
+          ]
+    );
+    setCorrectKey(initial?.correct_option || "");
+  }, [initial]);
+
+  function updateOptionContent(key, val) {
     setOptions((prev) =>
       prev.map((o) => (o.option_key === key ? { ...o, content: val } : o))
     );
-  };
+  }
 
   const submit = (e) => {
     e.preventDefault();
     if (!question_text.trim()) return toast.error("Question text required");
-    const validOptions = options.filter((o) => o.content.trim());
+    const validOptions = options.filter((o) => o.content && o.content.trim());
     if (validOptions.length < 2)
-      return toast.error("At least 2 options required");
+      return toast.error("At least two options required");
 
     onSubmit({
-      question_text: question_text.trim(),
-      explanation: explanation.trim() || null,
-      image_url: image_url.trim() || null,
       subject_id: parent.subject_id,
       chapter_id: parent.chapter_id,
       topic_id: parent.topic_id || null,
+      question_text: question_text.trim(),
+      explanation: explanation.trim() || null,
+      image_url: image_url?.trim() || null,
       options: options.map((o) => ({
         option_key: o.option_key,
-        content: o.content.trim(),
+        content: o.content?.trim() || "",
       })),
       correct_key: correct_key || null,
+      status: "pending",
     });
   };
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <label className="block">
-        <div className="text-sm font-medium mb-1">Question</div>
-        <textarea
-          value={question_text}
-          onChange={(e) => setQuestionText(e.target.value)}
-          className="w-full p-2 border rounded bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all h-24"
-        />
-      </label>
+      <TextArea
+        label="Question"
+        value={question_text}
+        onChange={setQuestionText}
+        rows={3}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {options.map((opt) => (
@@ -289,55 +377,51 @@ function QuestionForm({ initial = null, parent = {}, onCancel, onSubmit, saving 
               onChange={(e) =>
                 updateOptionContent(opt.option_key, e.target.value)
               }
-              className="w-full p-2 border rounded bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full p-2 border rounded bg-gray-50 dark:bg-gray-800"
             />
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <label className="block">
-          <div className="text-xs font-medium mb-1">Correct key (a|b|c|d)</div>
-          <input
-            value={correct_key}
-            onChange={(e) => setCorrectKey(e.target.value.trim().toLowerCase())}
-            className="w-full p-2 border rounded bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-            placeholder="a"
-          />
-        </label>
-        <label className="block">
-          <div className="text-xs font-medium mb-1">Image URL (optional)</div>
-          <input
-            value={image_url}
-            onChange={(e) => setImageUrl(e.target.value)}
-            className="w-full p-2 border rounded bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-          />
-        </label>
+        <TextInput
+          label="Correct key (a|b|c|d)"
+          value={correct_key}
+          onChange={setCorrectKey}
+          placeholder="a"
+        />
+        <TextInput
+          label="Image URL (optional)"
+          value={image_url}
+          onChange={setImageUrl}
+          placeholder="https://..."
+        />
       </div>
 
-      <label className="block">
-        <div className="text-xs font-medium mb-1">Explanation (optional)</div>
-        <textarea
-          value={explanation}
-          onChange={(e) => setExplanation(e.target.value)}
-          className="w-full p-2 border rounded bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-          rows={3}
-        />
-      </label>
+      <TextArea
+        label="Explanation (optional)"
+        value={explanation}
+        onChange={setExplanation}
+        rows={3}
+      />
 
-      <div className="flex justify-end gap-2">
+      <div className="flex gap-2 justify-end">
         <button
           type="button"
           onClick={onCancel}
-          className="px-3 py-2 rounded border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          className="px-3 py-2 rounded border"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="px-3 py-2 rounded bg-blue-600 text-white flex items-center gap-2 hover:bg-blue-700 transition-colors"
+          className="px-3 py-2 rounded bg-blue-600 text-white flex items-center gap-2"
         >
-          {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={14} />}{" "}
+          {saving ? (
+            <Loader2 className="animate-spin" size={16} />
+          ) : (
+            <Save size={14} />
+          )}{" "}
           {saving ? "Saving..." : "Save Question"}
         </button>
       </div>
@@ -345,24 +429,43 @@ function QuestionForm({ initial = null, parent = {}, onCancel, onSubmit, saving 
   );
 }
 
-/* ----------------------- Enhanced Question Display ----------------------- */
+/* ============================
+   Question Item (Accordion)
+   ============================ */
 
-function QuestionItem({ question, onEdit, onDelete, onToggle, isExpanded }) {
+function QuestionItem({
+  question,
+  isExpanded,
+  onToggle,
+  onEdit,
+  onDelete,
+  onStatusChange,
+  onViewImage,
+}) {
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden mb-2">
+      {/* Header is a div (not a button) to avoid nested <button> issues. Action buttons are separate */}
       <div className="flex justify-between items-start p-3 bg-gray-50 dark:bg-gray-800">
-        <div 
-          className="flex-1 flex items-start gap-3 cursor-pointer"
-          onClick={onToggle}
-        >
-          <FileQuestion className="text-purple-500 mt-1 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <div className="font-medium text-sm break-words">{question.question_text}</div>
-            <div className="text-xs text-gray-500 mt-1">
-              Correct: {question.correct_option?.toUpperCase() || "—"}
+        <div className="flex-1 min-w-0 cursor-pointer" onClick={onToggle}>
+          <div className="flex items-start gap-3">
+            <FileQuestion className="text-purple-500 mt-1 flex-shrink-0" />
+            <div className="min-w-0">
+              <div className="font-medium text-sm break-words">
+                {question.question_text}
+              </div>
+              <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                <StatusBadge status={question.status} />
+                <span className="text-xs">
+                  Correct:{" "}
+                  {question.correct_option
+                    ? question.correct_option.toUpperCase()
+                    : "—"}
+                </span>
+              </div>
             </div>
           </div>
         </div>
+
         <div className="flex gap-1 ml-2 flex-shrink-0">
           <IconButton
             title="Edit"
@@ -370,7 +473,7 @@ function QuestionItem({ question, onEdit, onDelete, onToggle, isExpanded }) {
               e.stopPropagation();
               onEdit();
             }}
-            className="text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20"
+            className="text-yellow-600 bg-yellow-50"
           >
             <Pencil size={14} />
           </IconButton>
@@ -380,60 +483,97 @@ function QuestionItem({ question, onEdit, onDelete, onToggle, isExpanded }) {
               e.stopPropagation();
               onDelete();
             }}
-            className="text-red-600 bg-red-50 dark:bg-red-900/20"
+            className="text-red-600 bg-red-50"
           >
             <Trash2 size={14} />
           </IconButton>
         </div>
       </div>
-      
-      {isExpanded && (
-        <div className="p-3 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-            {question.options?.map((opt) => (
-              <div
-                key={opt.option_key}
-                className={`p-2 rounded border ${
-                  question.correct_option === opt.option_key
-                    ? "bg-green-50 border-green-400 dark:bg-green-900/20"
-                    : "bg-gray-50 border-gray-200 dark:bg-gray-800"
-                }`}
-              >
-                <strong className="text-sm">{opt.option_key.toUpperCase()}.</strong> 
-                <span className="text-sm ml-1">{opt.content}</span>
+
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="p-3 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700"
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+              {question.options?.map((opt) => {
+                const isCorrect = question.correct_option === opt.option_key;
+
+                return (
+                  <div
+                    key={opt.option_key}
+                    className={`p-2 rounded border transition 
+          ${
+            isCorrect
+              ? "bg-green-50 border-green-400 dark:bg-green-900/30 dark:border-green-500"
+              : "bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700"
+          }`}
+                  >
+                    <strong>{opt.option_key.toUpperCase()}.</strong>
+                    <span className="ml-1">{opt.content}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {question.explanation && (
+              <div className="text-sm bg-gray-50 dark:bg-gray-800 p-2 rounded mb-2">
+                <strong>Explanation:</strong> {question.explanation}
               </div>
-            ))}
-          </div>
-          
-          {question.explanation && (
-            <div className="text-sm bg-gray-50 dark:bg-gray-800 p-2 rounded mb-2">
-              <strong>Explanation:</strong> {question.explanation}
-            </div>
-          )}
-          
-          {question.image_url && (
-            <div className="mt-2">
-              <button
-                className="text-sm text-blue-600 hover:underline flex items-center gap-1"
-                onClick={() => setImagePreview(question.image_url)}
+            )}
+
+            {question.image_url && (
+              <div className="mb-2">
+                <button
+                  type="button"
+                  onClick={() => onViewImage(question.image_url)}
+                  className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                >
+                  <Eye size={14} /> View image
+                </button>
+              </div>
+            )}
+
+            <div className="flex gap-2 mt-2">
+              <IconButton
+                onClick={() => onStatusChange(question.id, "approved")}
+                className="bg-green-50 text-green-700 border"
               >
-                <Eye size={14} /> View image
-              </button>
+                {" "}
+                <CheckCircle size={14} /> Approve
+              </IconButton>
+              <IconButton
+                onClick={() => onStatusChange(question.id, "pending")}
+                className="bg-yellow-50 text-yellow-700 border"
+              >
+                {" "}
+                <Clock size={14} /> Pending
+              </IconButton>
+              <IconButton
+                onClick={() => onStatusChange(question.id, "rejected")}
+                className="bg-red-50 text-red-700 border"
+              >
+                {" "}
+                <XCircle size={14} /> Reject
+              </IconButton>
             </div>
-          )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-/* ----------------------- Main Page ----------------------- */
+/* ============================
+   Main Page component
+   ============================ */
 
 export default function SubjectsManagerPage() {
-  const [tree, setTree] = useState([]);
-  const [expanded, setExpanded] = useState({});
-  const [loadingTree, setLoadingTree] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [tree, setTree] = useState([]); // expected shape: subjects -> chapters -> topics -> questions
+  const [expanded, setExpanded] = useState({}); // keys: subjectId | chapterId | topicId | `q-${questionId}`
   const [modal, setModal] = useState({
     open: false,
     kind: "",
@@ -442,171 +582,214 @@ export default function SubjectsManagerPage() {
     item: null,
     saving: false,
   });
+  const [loadingTree, setLoadingTree] = useState(true);
   const [imagePreview, setImagePreview] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const toggle = (key) =>
-    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+  const toggle = (key) => setExpanded((p) => ({ ...p, [key]: !p[key] }));
 
-  const fetchTree = async () => {
+  async function fetchTree() {
     try {
       setLoadingTree(true);
       const res = await fetch("/api/admin/subjects/tree");
       const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      if (!json.success) throw new Error(json.error || "Failed to load tree");
       setTree(json.tree || []);
     } catch (err) {
-      toast.error(err.message);
+      console.error(err);
+      toast.error(err.message || "Failed to load subjects");
     } finally {
       setLoadingTree(false);
     }
-  };
+  }
 
   useEffect(() => {
     fetchTree();
   }, []);
 
-  /* ---- CRUD Operations ---- */
+  /* Generic create/update functions that call API and refresh tree */
+  async function apiPost(path, payload) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  }
+  async function apiPut(path, payload) {
+    const res = await fetch(path, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  }
+  async function apiDelete(path) {
+    const res = await fetch(path, { method: "DELETE" });
+    return res.json();
+  }
+
+  /* Create / Update / Delete handlers for all entities */
   const createSubject = async (payload) => {
     try {
-      setModal(prev => ({ ...prev, saving: true }));
-      const res = await fetch("/api/admin/subjects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      setModal((m) => ({ ...m, saving: true }));
+      const json = await apiPost("/api/admin/subjects", payload);
+      if (!json.success) throw new Error(json.error || "Create failed");
       toast.success("Subject created");
-      setModal({ open: false, kind: "", mode: "create", parent: null, item: null, saving: false });
+      setModal({
+        open: false,
+        kind: "",
+        mode: "create",
+        parent: null,
+        item: null,
+        saving: false,
+      });
       await fetchTree();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Create subject failed");
+      setModal((m) => ({ ...m, saving: false }));
     }
   };
-
   const updateSubject = async (id, payload) => {
     try {
-      setModal(prev => ({ ...prev, saving: true }));
-      const res = await fetch(`/api/admin/subjects/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      setModal((m) => ({ ...m, saving: true }));
+      const json = await apiPut(`/api/admin/subjects/${id}`, payload);
+      if (!json.success) throw new Error(json.error || "Update failed");
       toast.success("Subject updated");
-      setModal({ open: false, kind: "", mode: "create", parent: null, item: null, saving: false });
+      setModal({
+        open: false,
+        kind: "",
+        mode: "create",
+        parent: null,
+        item: null,
+        saving: false,
+      });
       await fetchTree();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Update subject failed");
+      setModal((m) => ({ ...m, saving: false }));
     }
   };
-
   const createChapter = async (payload) => {
     try {
-      setModal(prev => ({ ...prev, saving: true }));
-      const res = await fetch("/api/admin/chapters", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      setModal((m) => ({ ...m, saving: true }));
+      const json = await apiPost("/api/admin/chapters", payload);
+      if (!json.success) throw new Error(json.error || "Create failed");
       toast.success("Chapter created");
-      setModal({ open: false, kind: "", mode: "create", parent: null, item: null, saving: false });
+      setModal({
+        open: false,
+        kind: "",
+        mode: "create",
+        parent: null,
+        item: null,
+        saving: false,
+      });
       await fetchTree();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Create chapter failed");
+      setModal((m) => ({ ...m, saving: false }));
     }
   };
-
   const updateChapter = async (id, payload) => {
     try {
-      setModal(prev => ({ ...prev, saving: true }));
-      const res = await fetch(`/api/admin/chapters/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      setModal((m) => ({ ...m, saving: true }));
+      const json = await apiPut(`/api/admin/chapters/${id}`, payload);
+      if (!json.success) throw new Error(json.error || "Update failed");
       toast.success("Chapter updated");
-      setModal({ open: false, kind: "", mode: "create", parent: null, item: null, saving: false });
+      setModal({
+        open: false,
+        kind: "",
+        mode: "create",
+        parent: null,
+        item: null,
+        saving: false,
+      });
       await fetchTree();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Update chapter failed");
+      setModal((m) => ({ ...m, saving: false }));
     }
   };
-
   const createTopic = async (payload) => {
     try {
-      setModal(prev => ({ ...prev, saving: true }));
-      const res = await fetch("/api/admin/topics", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      setModal((m) => ({ ...m, saving: true }));
+      const json = await apiPost("/api/admin/topics", payload);
+      if (!json.success) throw new Error(json.error || "Create failed");
       toast.success("Topic created");
-      setModal({ open: false, kind: "", mode: "create", parent: null, item: null, saving: false });
+      setModal({
+        open: false,
+        kind: "",
+        mode: "create",
+        parent: null,
+        item: null,
+        saving: false,
+      });
       await fetchTree();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Create topic failed");
+      setModal((m) => ({ ...m, saving: false }));
     }
   };
-
   const updateTopic = async (id, payload) => {
     try {
-      setModal(prev => ({ ...prev, saving: true }));
-      const res = await fetch(`/api/admin/topics/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      setModal((m) => ({ ...m, saving: true }));
+      const json = await apiPut(`/api/admin/topics/${id}`, payload);
+      if (!json.success) throw new Error(json.error || "Update failed");
       toast.success("Topic updated");
-      setModal({ open: false, kind: "", mode: "create", parent: null, item: null, saving: false });
+      setModal({
+        open: false,
+        kind: "",
+        mode: "create",
+        parent: null,
+        item: null,
+        saving: false,
+      });
       await fetchTree();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Update topic failed");
+      setModal((m) => ({ ...m, saving: false }));
     }
   };
 
   const createQuestion = async (payload) => {
     try {
-      setModal(prev => ({ ...prev, saving: true }));
-      const res = await fetch("/api/admin/questions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      setModal((m) => ({ ...m, saving: true }));
+      const json = await apiPost("/api/admin/questions", payload);
+      if (!json.success) throw new Error(json.error || "Create failed");
       toast.success("Question created");
-      setModal({ open: false, kind: "", mode: "create", parent: null, item: null, saving: false });
+      setModal({
+        open: false,
+        kind: "",
+        mode: "create",
+        parent: null,
+        item: null,
+        saving: false,
+      });
       await fetchTree();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Create question failed");
+      setModal((m) => ({ ...m, saving: false }));
     }
   };
 
   const updateQuestion = async (id, payload) => {
     try {
-      setModal(prev => ({ ...prev, saving: true }));
-      const res = await fetch(`/api/admin/questions/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      setModal((m) => ({ ...m, saving: true }));
+      const json = await apiPut(`/api/admin/questions/${id}`, payload);
+      if (!json.success) throw new Error(json.error || "Update failed");
       toast.success("Question updated");
-      setModal({ open: false, kind: "", mode: "create", parent: null, item: null, saving: false });
+      setModal({
+        open: false,
+        kind: "",
+        mode: "create",
+        parent: null,
+        item: null,
+        saving: false,
+      });
       await fetchTree();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Update question failed");
+      setModal((m) => ({ ...m, saving: false }));
     }
   };
 
@@ -614,37 +797,74 @@ export default function SubjectsManagerPage() {
     if (!confirm(`Delete this ${kind}?`)) return;
     try {
       setActionLoading(true);
-      const res = await fetch(`/api/admin/${kind}s/${id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      const json = await apiDelete(`/api/admin/${kind}s/${id}`);
+      if (!json.success) throw new Error(json.error || "Delete failed");
       toast.success(`${kind} deleted`);
       await fetchTree();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || "Delete failed");
     } finally {
       setActionLoading(false);
     }
   };
 
+  /* Status update for question (admin endpoint) */
+  const handleStatusChange = async (questionId, status) => {
+    try {
+      const json = await apiPut(`/api/admin/questions/${questionId}/status`, {
+        status,
+      });
+      if (!json.success) throw new Error(json.error || "Status update failed");
+      toast.success(`Status set to ${status}`);
+      await fetchTree();
+    } catch (err) {
+      toast.error(err.message || "Status update failed");
+    }
+  };
+
+  /* Helpers to open/close modal */
   const openCreate = (kind, parent = null) =>
-    setModal({ open: true, kind, mode: "create", parent, item: null, saving: false });
+    setModal({
+      open: true,
+      kind,
+      mode: "create",
+      parent,
+      item: null,
+      saving: false,
+    });
   const openEdit = (kind, item, parent = null) =>
     setModal({ open: true, kind, mode: "edit", parent, item, saving: false });
+  const closeModal = () =>
+    setModal({
+      open: false,
+      kind: "",
+      mode: "create",
+      parent: null,
+      item: null,
+      saving: false,
+    });
+
+  /* Helper to render question item props (editing needs parent context) */
+  const onEditQuestion = (q, parent) => openEdit("question", q, parent);
 
   return (
-    <div className="p-4 sm:p-6 dark:bg-gray-900 min-h-screen">
+    <div className="p-6 dark:bg-gray-900 min-h-screen">
       <Toaster position="top-right" />
-      <div className="mx-auto">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <Folder className="text-blue-600" /> Subject Manager
-          </h1>
-          <button
-            onClick={() => openCreate("subject")}
-            className="inline-flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 transition-colors w-full sm:w-auto justify-center"
-          >
-            <Plus size={14} /> Add Subject
-          </button>
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-3">
+            <Folder className="text-blue-600" size={24} />
+            <h1 className="text-2xl font-semibold">Subject Manager</h1>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => openCreate("subject")}
+              className="inline-flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700"
+            >
+              <Plus size={14} /> Add Subject
+            </button>
+          </div>
         </div>
 
         {loadingTree ? (
@@ -652,225 +872,305 @@ export default function SubjectsManagerPage() {
             <Loader2 className="animate-spin inline" /> Loading...
           </div>
         ) : tree.length === 0 ? (
-          <div className="py-16 text-center text-gray-500">No subjects found.</div>
+          <div className="py-16 text-center text-gray-500">
+            No subjects found — add one to begin.
+          </div>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 space-y-4">
             {tree.map((subject) => (
-              <div key={subject.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                {/* Subject */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div key={subject.id}>
+                {/* Subject Header */}
+                <div className="flex items-center justify-between">
                   <div
-                    className="flex items-center gap-2 cursor-pointer flex-1 min-w-0"
+                    className="flex items-center gap-3 cursor-pointer"
                     onClick={() => toggle(subject.id)}
                   >
                     {expanded[subject.id] ? <ChevronDown /> : <ChevronRight />}
-                    <Folder className="text-blue-500 flex-shrink-0" />
-                    <div className="min-w-0">
-                      <div className="font-medium truncate">{subject.name}</div>
+                    <Folder className="text-blue-500" />
+                    <div>
+                      <div className="font-medium">{subject.name}</div>
                       {subject.description && (
-                        <div className="text-xs text-gray-500 truncate">
+                        <div className="text-xs text-gray-500">
                           {subject.description}
                         </div>
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-1 sm:gap-2 w-full sm:w-auto justify-end">
+
+                  <div className="flex items-center gap-2">
                     <IconButton
-                      title="Add Chapter"
-                      onClick={() => openCreate("chapter", { subject_id: subject.id })}
-                      className="text-blue-600 bg-blue-50 dark:bg-blue-900/20 text-xs"
+                      title="Add chapter"
+                      onClick={() =>
+                        openCreate("chapter", { subject_id: subject.id })
+                      }
+                      className="text-blue-600"
                     >
                       + Chapter
                     </IconButton>
                     <IconButton
-                      title="Edit"
+                      title="Edit subject"
                       onClick={() => openEdit("subject", subject)}
-                      className="text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20"
+                      className="text-yellow-600"
                     >
                       <Pencil size={14} />
                     </IconButton>
                     <IconButton
-                      title="Delete"
+                      title="Delete subject"
                       onClick={() => handleDelete("subject", subject.id)}
-                      className="text-red-600 bg-red-50 dark:bg-red-900/20"
-                      disabled={actionLoading}
+                      className="text-red-600"
                     >
-                      {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
+                      {actionLoading ? (
+                        <Loader2 className="animate-spin" size={14} />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
                     </IconButton>
                   </div>
                 </div>
 
                 {/* Chapters */}
-                {expanded[subject.id] &&
-                  subject.chapters?.map((ch) => (
-                    <div key={ch.id} className="mt-4 ml-2 sm:ml-6 pl-3 sm:pl-4 border-l-2 border-gray-200 dark:border-gray-700">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                        <div
-                          className="flex items-center gap-2 cursor-pointer flex-1 min-w-0"
-                          onClick={() => toggle(ch.id)}
-                        >
-                          {expanded[ch.id] ? <ChevronDown /> : <ChevronRight />}
-                          <Folder className="text-indigo-500 flex-shrink-0" size={16} />
-                          <div className="min-w-0">
-                            <div className="font-medium truncate">{ch.name}</div>
-                            {ch.description && (
-                              <div className="text-xs text-gray-500 truncate">{ch.description}</div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex gap-1 sm:gap-2 w-full sm:w-auto justify-end">
-                          <IconButton
-                            title="Add Topic"
-                            onClick={() => openCreate("topic", { chapter_id: ch.id })}
-                            className="text-blue-600 bg-blue-50 dark:bg-blue-900/20 text-xs"
-                          >
-                            + Topic
-                          </IconButton>
-                          <IconButton
-                            title="Add Question"
-                            onClick={() =>
-                              openCreate("question", {
-                                subject_id: subject.id,
-                                chapter_id: ch.id,
-                              })
-                            }
-                            className="text-green-600 bg-green-50 dark:bg-green-900/20 text-xs"
-                          >
-                            + Q
-                          </IconButton>
-                          <IconButton
-                            title="Edit"
-                            onClick={() => openEdit("chapter", ch, { subject_id: subject.id })}
-                            className="text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20"
-                          >
-                            <Pencil size={14} />
-                          </IconButton>
-                          <IconButton
-                            title="Delete"
-                            onClick={() => handleDelete("chapter", ch.id)}
-                            className="text-red-600 bg-red-50 dark:bg-red-900/20"
-                            disabled={actionLoading}
-                          >
-                            {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
-                          </IconButton>
-                        </div>
-                      </div>
-
-                      {expanded[ch.id] && (
-                        <div className="ml-2 sm:ml-6 mt-3 space-y-4">
-                          {/* Chapter-level questions */}
-                          {ch.questions?.length > 0 && (
-                            <div>
-                              <div className="font-medium text-sm mb-2 text-gray-600">
-                                Chapter Questions:
-                              </div>
-                              {ch.questions.map((q) => (
-                                <QuestionItem
-                                  key={q.id}
-                                  question={q}
-                                  onEdit={() => openEdit("question", q, { 
-                                    subject_id: subject.id, 
-                                    chapter_id: ch.id 
-                                  })}
-                                  onDelete={() => handleDelete("question", q.id)}
-                                  onToggle={() => toggle(`q-${q.id}`)}
-                                  isExpanded={expanded[`q-${q.id}`]}
-                                />
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Topics and their questions */}
-                          {ch.topics?.length > 0 && (
-                            <div>
-                              <div className="font-medium text-sm mb-2 text-gray-600">Topics:</div>
-                              {ch.topics.map((t) => (
-                                <div key={t.id} className="mb-4 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-                                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                                    <div 
-                                      className="flex items-center gap-2 cursor-pointer flex-1 min-w-0"
-                                      onClick={() => toggle(t.id)}
-                                    >
-                                      {expanded[t.id] ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                                      <div className="font-medium truncate">{t.name}</div>
-                                    </div>
-                                    <div className="flex gap-1 sm:gap-2 w-full sm:w-auto justify-end">
-                                      <IconButton
-                                        title="Add Question"
-                                        onClick={() =>
-                                          openCreate("question", {
-                                            subject_id: subject.id,
-                                            chapter_id: ch.id,
-                                            topic_id: t.id,
-                                          })
-                                        }
-                                        className="text-green-600 bg-green-50 dark:bg-green-900/20 text-xs"
-                                      >
-                                        + Q
-                                      </IconButton>
-                                      <IconButton
-                                        title="Edit"
-                                        onClick={() => openEdit("topic", t, { chapter_id: ch.id })}
-                                        className="text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20"
-                                      >
-                                        <Pencil size={14} />
-                                      </IconButton>
-                                      <IconButton
-                                        title="Delete"
-                                        onClick={() => handleDelete("topic", t.id)}
-                                        className="text-red-600 bg-red-50 dark:bg-red-900/20"
-                                        disabled={actionLoading}
-                                      >
-                                        {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
-                                      </IconButton>
-                                    </div>
+                {expanded[subject.id] && (
+                  <div className="mt-3 ml-6 space-y-3">
+                    {subject.chapters?.length ? (
+                      subject.chapters.map((ch) => (
+                        <div key={ch.id}>
+                          <div className="flex items-center justify-between">
+                            <div
+                              className="flex items-center gap-3 cursor-pointer"
+                              onClick={() => toggle(ch.id)}
+                            >
+                              {expanded[ch.id] ? (
+                                <ChevronDown />
+                              ) : (
+                                <ChevronRight />
+                              )}
+                              <Folder className="text-indigo-500" />
+                              <div>
+                                <div className="font-medium">{ch.name}</div>
+                                {ch.description && (
+                                  <div className="text-xs text-gray-500">
+                                    {ch.description}
                                   </div>
+                                )}
+                              </div>
+                            </div>
 
-                                  {expanded[t.id] && (
-                                    <div className="ml-2 sm:ml-4 mt-3">
-                                      {t.questions?.length ? (
-                                        t.questions.map((q) => (
-                                          <QuestionItem
-                                            key={q.id}
-                                            question={q}
-                                            onEdit={() => openEdit("question", q, {
-                                              subject_id: subject.id,
-                                              chapter_id: ch.id,
-                                              topic_id: t.id,
-                                            })}
-                                            onDelete={() => handleDelete("question", q.id)}
-                                            onToggle={() => toggle(`q-${q.id}`)}
-                                            isExpanded={expanded[`q-${q.id}`]}
-                                          />
-                                        ))
-                                      ) : (
-                                        <div className="text-xs text-gray-500 p-2 text-center">
-                                          No topic questions
+                            <div className="flex items-center gap-2">
+                              <IconButton
+                                title="Add topic"
+                                onClick={() =>
+                                  openCreate("topic", { chapter_id: ch.id })
+                                }
+                                className="text-blue-600"
+                              >
+                                + Topic
+                              </IconButton>
+                              <IconButton
+                                title="Add question"
+                                onClick={() =>
+                                  openCreate("question", {
+                                    subject_id: subject.id,
+                                    chapter_id: ch.id,
+                                  })
+                                }
+                                className="text-green-600"
+                              >
+                                + Question
+                              </IconButton>
+                              <IconButton
+                                title="Edit chapter"
+                                onClick={() =>
+                                  openEdit("chapter", ch, {
+                                    subject_id: subject.id,
+                                  })
+                                }
+                                className="text-yellow-600"
+                              >
+                                <Pencil size={14} />
+                              </IconButton>
+                              <IconButton
+                                title="Delete chapter"
+                                onClick={() => handleDelete("chapter", ch.id)}
+                                className="text-red-600"
+                              >
+                                {actionLoading ? (
+                                  <Loader2 className="animate-spin" size={14} />
+                                ) : (
+                                  <Trash2 size={14} />
+                                )}
+                              </IconButton>
+                            </div>
+                          </div>
+
+                          {/* Chapter details */}
+                          {expanded[ch.id] && (
+                            <div className="mt-2 ml-6">
+                              {/* direct (chapter) questions */}
+                              {ch.questions?.length > 0 && (
+                                <div className="mb-3">
+                                  <div className="font-medium text-sm mb-2">
+                                    Chapter Questions
+                                  </div>
+                                  {ch.questions.map((q) => (
+                                    <QuestionItem
+                                      key={q.id}
+                                      question={q}
+                                      isExpanded={expanded[`q-${q.id}`]}
+                                      onToggle={() => toggle(`q-${q.id}`)}
+                                      onEdit={() =>
+                                        onEditQuestion(q, {
+                                          subject_id: subject.id,
+                                          chapter_id: ch.id,
+                                        })
+                                      }
+                                      onDelete={() =>
+                                        handleDelete("question", q.id)
+                                      }
+                                      onStatusChange={handleStatusChange}
+                                      onViewImage={(url) =>
+                                        setImagePreview(url)
+                                      }
+                                    />
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* topics */}
+                              {ch.topics?.length > 0 && (
+                                <div>
+                                  <div className="font-medium text-sm mb-2">
+                                    Topics
+                                  </div>
+                                  {ch.topics.map((t) => (
+                                    <div
+                                      key={t.id}
+                                      className="mb-4 border border-gray-200 dark:border-gray-700 rounded-lg p-3"
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div
+                                          className="flex items-center gap-3 cursor-pointer"
+                                          onClick={() => toggle(t.id)}
+                                        >
+                                          {expanded[t.id] ? (
+                                            <ChevronDown />
+                                          ) : (
+                                            <ChevronRight />
+                                          )}
+                                          <div className="font-medium">
+                                            {t.name}
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                          <IconButton
+                                            title="Add question"
+                                            onClick={() =>
+                                              openCreate("question", {
+                                                subject_id: subject.id,
+                                                chapter_id: ch.id,
+                                                topic_id: t.id,
+                                              })
+                                            }
+                                            className="text-green-600"
+                                          >
+                                            + Question
+                                          </IconButton>
+                                          <IconButton
+                                            title="Edit topic"
+                                            onClick={() =>
+                                              openEdit("topic", t, {
+                                                chapter_id: ch.id,
+                                              })
+                                            }
+                                            className="text-yellow-600"
+                                          >
+                                            <Pencil size={14} />
+                                          </IconButton>
+                                          <IconButton
+                                            title="Delete topic"
+                                            onClick={() =>
+                                              handleDelete("topic", t.id)
+                                            }
+                                            className="text-red-600"
+                                          >
+                                            {actionLoading ? (
+                                              <Loader2
+                                                className="animate-spin"
+                                                size={14}
+                                              />
+                                            ) : (
+                                              <Trash2 size={14} />
+                                            )}
+                                          </IconButton>
+                                        </div>
+                                      </div>
+
+                                      {expanded[t.id] && (
+                                        <div className="mt-3 ml-4">
+                                          {t.questions?.length ? (
+                                            t.questions.map((q) => (
+                                              <QuestionItem
+                                                key={q.id}
+                                                question={q}
+                                                isExpanded={
+                                                  expanded[`q-${q.id}`]
+                                                }
+                                                onToggle={() =>
+                                                  toggle(`q-${q.id}`)
+                                                }
+                                                onEdit={() =>
+                                                  onEditQuestion(q, {
+                                                    subject_id: subject.id,
+                                                    chapter_id: ch.id,
+                                                    topic_id: t.id,
+                                                  })
+                                                }
+                                                onDelete={() =>
+                                                  handleDelete("question", q.id)
+                                                }
+                                                onStatusChange={
+                                                  handleStatusChange
+                                                }
+                                                onViewImage={(url) =>
+                                                  setImagePreview(url)
+                                                }
+                                              />
+                                            ))
+                                          ) : (
+                                            <div className="text-xs text-gray-500 p-2 text-center">
+                                              No topic questions
+                                            </div>
+                                          )}
                                         </div>
                                       )}
                                     </div>
-                                  )}
+                                  ))}
                                 </div>
-                              ))}
-                            </div>
-                          )}
+                              )}
 
-                          {!ch.questions?.length && !ch.topics?.length && (
-                            <div className="text-xs text-gray-500 p-4 text-center border border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
-                              No questions or topics yet.
+                              {!ch.questions?.length && !ch.topics?.length && (
+                                <div className="text-xs text-gray-500 p-4 text-center border border-dashed rounded-lg">
+                                  No questions or topics yet.
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      ))
+                    ) : (
+                      <div className="text-xs text-gray-500">
+                        No chapters yet.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Image Preview Modal */}
+      {/* Image preview */}
       <AnimatePresence>
         {imagePreview && (
           <motion.div
@@ -880,21 +1180,25 @@ export default function SubjectsManagerPage() {
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
             onClick={() => setImagePreview(null)}
           >
-            <div className="bg-white dark:bg-gray-900 p-4 rounded-lg max-w-3xl w-full max-h-[90vh] overflow-auto">
+            <div
+              className="bg-white dark:bg-gray-900 p-4 rounded max-w-3xl w-full max-h-[90vh] overflow-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold">Image Preview</h3>
                 <button
+                  type="button"
                   onClick={() => setImagePreview(null)}
-                  className="text-gray-500 hover:text-red-500 transition-colors"
+                  className="text-gray-500 hover:text-red-500"
                 >
                   ✕
                 </button>
               </div>
+              {/* Use img tag — ensure CORS host allows embedding */}
               <img
                 src={imagePreview}
                 alt="preview"
-                className="w-full h-auto object-contain rounded"
-                onClick={(e) => e.stopPropagation()}
+                className="w-full object-contain rounded"
               />
             </div>
           </motion.div>
@@ -904,25 +1208,20 @@ export default function SubjectsManagerPage() {
       {/* CRUD Modal */}
       <Modal
         open={modal.open}
-        onClose={() =>
-          setModal({
-            open: false,
-            kind: "",
-            mode: "create",
-            parent: null,
-            item: null,
-            saving: false,
-          })
-        }
+        onClose={closeModal}
         title={`${modal.mode === "create" ? "Create" : "Edit"} ${
-          modal.kind ? modal.kind.charAt(0).toUpperCase() + modal.kind.slice(1) : ""
+          modal.kind || ""
         }`}
       >
         {modal.kind === "subject" && (
           <SubjectForm
             initial={modal.mode === "edit" ? modal.item : null}
-            onCancel={() => setModal({ open: false, kind: "", mode: "create", parent: null, item: null, saving: false })}
-            onSubmit={modal.mode === "create" ? createSubject : (payload) => updateSubject(modal.item.id, payload)}
+            onCancel={closeModal}
+            onSubmit={(payload) =>
+              modal.mode === "create"
+                ? createSubject(payload)
+                : updateSubject(modal.item.id, payload)
+            }
             saving={modal.saving}
           />
         )}
@@ -930,8 +1229,12 @@ export default function SubjectsManagerPage() {
           <ChapterForm
             initial={modal.mode === "edit" ? modal.item : null}
             parentSubjectId={modal.parent?.subject_id || ""}
-            onCancel={() => setModal({ open: false, kind: "", mode: "create", parent: null, item: null, saving: false })}
-            onSubmit={modal.mode === "create" ? createChapter : (payload) => updateChapter(modal.item.id, payload)}
+            onCancel={closeModal}
+            onSubmit={(payload) =>
+              modal.mode === "create"
+                ? createChapter(payload)
+                : updateChapter(modal.item.id, payload)
+            }
             saving={modal.saving}
           />
         )}
@@ -939,8 +1242,12 @@ export default function SubjectsManagerPage() {
           <TopicForm
             initial={modal.mode === "edit" ? modal.item : null}
             parentChapterId={modal.parent?.chapter_id || ""}
-            onCancel={() => setModal({ open: false, kind: "", mode: "create", parent: null, item: null, saving: false })}
-            onSubmit={modal.mode === "create" ? createTopic : (payload) => updateTopic(modal.item.id, payload)}
+            onCancel={closeModal}
+            onSubmit={(payload) =>
+              modal.mode === "create"
+                ? createTopic(payload)
+                : updateTopic(modal.item.id, payload)
+            }
             saving={modal.saving}
           />
         )}
@@ -948,8 +1255,12 @@ export default function SubjectsManagerPage() {
           <QuestionForm
             initial={modal.mode === "edit" ? modal.item : null}
             parent={modal.parent || {}}
-            onCancel={() => setModal({ open: false, kind: "", mode: "create", parent: null, item: null, saving: false })}
-            onSubmit={modal.mode === "create" ? createQuestion : (payload) => updateQuestion(modal.item.id, payload)}
+            onCancel={closeModal}
+            onSubmit={(payload) =>
+              modal.mode === "create"
+                ? createQuestion(payload)
+                : updateQuestion(modal.item.id, payload)
+            }
             saving={modal.saving}
           />
         )}
