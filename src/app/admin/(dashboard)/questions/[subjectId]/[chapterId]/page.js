@@ -295,7 +295,7 @@ export default function ChapterDetailsPage() {
     );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-6 transition-colors duration-200">
+    <div className="min-h-screen dark:from-gray-900 dark:to-gray-800 transition-colors duration-200">
       <div className="mx-auto">
         {/* Header Section */}
         <div className="mb-8">
@@ -314,7 +314,7 @@ export default function ChapterDetailsPage() {
               </Link>
 
               {/* Chapter Title */}
-              <div className="flex items-center gap-4 mb-2">
+              <div className="flex items-center flex-wrap gap-4 mb-2">
                 <div className="p-4 bg-white dark:bg-gray-800 rounded-2xl shadow-lg">
                   <Folder
                     className="text-blue-600 dark:text-blue-400"
@@ -551,11 +551,11 @@ export default function ChapterDetailsPage() {
                 </h2>
               </div>
 
-              {filteredTopics.filter((topic) => topic.questions.length > 0)
+              {filteredTopics.filter((topic) => topic.questions.length >= 0)
                 .length > 0 ? (
                 <div className="space-y-4">
                   {filteredTopics
-                    .filter((topic) => topic.questions.length > 0)
+                    .filter((topic) => topic.questions.length >= 0)
                     .map((topic) => (
                       <TopicAccordion
                         key={topic.id}
@@ -697,7 +697,7 @@ function QuestionCard({
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
       {/* Question Header */}
-      <div className="flex justify-between items-start mb-4">
+      <div className="flex justify-between flex-wrap items-start mb-4">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
             <FileText className="text-blue-600 dark:text-blue-400" size={20} />
