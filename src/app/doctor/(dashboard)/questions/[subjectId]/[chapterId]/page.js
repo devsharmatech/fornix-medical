@@ -68,13 +68,13 @@ export default function ChapterDetailsPage() {
       console.log("API Response:", json); // Debug log
 
       setChapter(json.chapter);
-      
+
       // Ensure topics have questions array
-      const topicsWithQuestions = (json.topics || []).map(topic => ({
+      const topicsWithQuestions = (json.topics || []).map((topic) => ({
         ...topic,
-        questions: topic.questions || []
+        questions: topic.questions || [],
       }));
-      
+
       setTopics(topicsWithQuestions);
       setQuestions(json.questions || []);
       setFilteredQuestions(json.questions || []);
@@ -92,7 +92,12 @@ export default function ChapterDetailsPage() {
 
   // Apply search and filter
   useEffect(() => {
-    console.log("Applying filters...", { searchTerm, statusFilter, questions, topics }); // Debug log
+    console.log("Applying filters...", {
+      searchTerm,
+      statusFilter,
+      questions,
+      topics,
+    }); // Debug log
 
     let filteredDirectQuestions = [...questions];
     let filteredTopicQuestions = topics.map((topic) => ({
@@ -128,11 +133,16 @@ export default function ChapterDetailsPage() {
       // Apply status filter to topic questions
       filteredTopicQuestions = filteredTopicQuestions.map((topic) => ({
         ...topic,
-        questions: (topic.questions || []).filter((q) => q.status === statusFilter),
+        questions: (topic.questions || []).filter(
+          (q) => q.status === statusFilter
+        ),
       }));
     }
 
-    console.log("Filtered results:", { filteredDirectQuestions, filteredTopicQuestions }); // Debug log
+    console.log("Filtered results:", {
+      filteredDirectQuestions,
+      filteredTopicQuestions,
+    }); // Debug log
 
     setFilteredQuestions(filteredDirectQuestions);
     setFilteredTopics(filteredTopicQuestions);
@@ -289,13 +299,17 @@ export default function ChapterDetailsPage() {
   // Calculate stats based on filtered data
   const totalFilteredQuestions =
     filteredQuestions.length +
-    filteredTopics.reduce((total, topic) => total + (topic?.questions?.length || 0), 0);
+    filteredTopics.reduce(
+      (total, topic) => total + (topic?.questions?.length || 0),
+      0
+    );
 
   const approvedFilteredQuestions =
     filteredQuestions.filter((q) => q.status === "approved").length +
     filteredTopics.reduce(
       (total, topic) =>
-        total + (topic?.questions?.filter((q) => q.status === "approved").length || 0),
+        total +
+        (topic?.questions?.filter((q) => q.status === "approved").length || 0),
       0
     );
 
@@ -303,16 +317,19 @@ export default function ChapterDetailsPage() {
     filteredQuestions.filter((q) => q.status === "pending").length +
     filteredTopics.reduce(
       (total, topic) =>
-        total + (topic?.questions?.filter((q) => q.status === "pending").length || 0),
+        total +
+        (topic?.questions?.filter((q) => q.status === "pending").length || 0),
       0
     );
 
   // Check if we have any topics with questions to display
-  const hasTopicsWithQuestions = filteredTopics.some(topic => topic.questions?.length > 0);
+  const hasTopicsWithQuestions = filteredTopics.some(
+    (topic) => topic.questions?.length > 0
+  );
   const hasAnyTopics = topics.length > 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-6 transition-colors duration-200">
+    <div className="min-h-screen dark:from-gray-900 dark:to-gray-800 p-6 transition-colors duration-200">
       <div className="mx-auto">
         {/* Header Section */}
         <div className="mb-8">
@@ -558,10 +575,13 @@ export default function ChapterDetailsPage() {
                   />
                   Topics
                   <span className="text-sm font-normal text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
-                    {hasTopicsWithQuestions 
-                      ? `${filteredTopics.filter(topic => topic.questions?.length > 0).length} topics with questions`
-                      : `${topics.length} topics`
-                    }
+                    {hasTopicsWithQuestions
+                      ? `${
+                          filteredTopics.filter(
+                            (topic) => topic.questions?.length > 0
+                          ).length
+                        } topics with questions`
+                      : `${topics.length} topics`}
                   </span>
                 </h2>
               </div>
@@ -750,66 +770,73 @@ function QuestionCard({
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 leading-relaxed">
           {question.question_text}
         </h3>
-
-        {/* Question Image */}
-        {question.question_image_url && (
-          <div className="mb-4">
-            <a
-              href={question.question_image_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
-            >
-              <FileText size={16} />
-              View Question Image
-            </a>
-          </div>
-        )}
       </div>
 
-      {/* Options */}
-      <div className="grid gap-2 mb-4">
-        {question.question_options?.map((option) => (
-          <div
-            key={option.id}
-            className={`flex items-center gap-3 p-3 rounded-lg border ${
-              option.option_key === correctAnswer
-                ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
-                : "bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600"
-            }`}
-          >
-            <div
-              className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium ${
-                option.option_key === correctAnswer
-                  ? "bg-green-600 text-white"
-                  : "bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300"
-              }`}
-            >
-              {option.option_key}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          {/* Options */}
+          <div className="grid gap-2 mb-4">
+            {question.question_options?.map((option) => (
+              <div
+                key={option.id}
+                className={`flex items-center gap-3 p-3 rounded-lg border ${
+                  option.option_key === correctAnswer
+                    ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                    : "bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600"
+                }`}
+              >
+                <div
+                  className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium ${
+                    option.option_key === correctAnswer
+                      ? "bg-green-600 text-white"
+                      : "bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300"
+                  }`}
+                >
+                  {option.option_key}
+                </div>
+                <span className="text-gray-900 dark:text-white flex-1">
+                  {option.content}
+                </span>
+                {option.option_key === correctAnswer && (
+                  <CheckCircle2
+                    className="text-green-600 flex-shrink-0"
+                    size={16}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Correct Answer */}
+          {correctOption && (
+            <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+              <div className="flex items-center gap-2 text-green-800 dark:text-green-300">
+                <CheckCircle2 size={16} />
+                <span className="font-medium">Correct Answer:</span>
+                <span>{correctOption.content}</span>
+              </div>
             </div>
-            <span className="text-gray-900 dark:text-white flex-1">
-              {option.content}
-            </span>
-            {option.option_key === correctAnswer && (
-              <CheckCircle2
-                className="text-green-600 flex-shrink-0"
-                size={16}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Correct Answer */}
-      {correctOption && (
-        <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-          <div className="flex items-center gap-2 text-green-800 dark:text-green-300">
-            <CheckCircle2 size={16} />
-            <span className="font-medium">Correct Answer:</span>
-            <span>{correctOption.content}</span>
-          </div>
+          )}
         </div>
-      )}
+        <div>
+          {/* Question Image */}
+          {question.question_image_url && (
+            <div className="mb-4">
+              <a
+                href={question.question_image_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+              >
+                <img
+                  src={question.question_image_url}
+                  className="max-h-[290] rounded-md"
+                />
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Explanation */}
       {showExplanation && question.explanation && (
@@ -821,16 +848,18 @@ function QuestionCard({
           <p className="text-blue-800 dark:text-blue-200 leading-relaxed whitespace-pre-line">
             {question.explanation}
           </p>
-          {question.explanation_image_url && (
+          {question.image_url && (
             <div className="mt-3">
               <a
-                href={question.explanation_image_url}
+                href={question.image_url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
               >
-                <FileText size={16} />
-                View Explanation Image
+                <img
+                  src={question.image_url}
+                  className="max-h-[290] rounded-md"
+                />
               </a>
             </div>
           )}

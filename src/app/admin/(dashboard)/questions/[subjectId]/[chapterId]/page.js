@@ -748,66 +748,70 @@ function QuestionCard({
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 leading-relaxed">
           {question.question_text}
         </h3>
-
-        {/* Question Image */}
-        {question.question_image_url && (
-          <div className="mb-4">
-            <a
-              href={question.question_image_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
-            >
-              <FileText size={16} />
-              View Question Image
-            </a>
-          </div>
-        )}
       </div>
-
-      {/* Options */}
-      <div className="grid gap-2 mb-4">
-        {question.question_options?.map((option) => (
-          <div
-            key={option.id}
-            className={`flex items-center gap-3 p-3 rounded-lg border ${
-              option.option_key === correctAnswer
-                ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
-                : "bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600"
-            }`}
-          >
-            <div
-              className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium ${
-                option.option_key === correctAnswer
-                  ? "bg-green-600 text-white"
-                  : "bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300"
-              }`}
-            >
-              {option.option_key}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          {/* Options */}
+          <div className="grid  gap-2 mb-4">
+            {question.question_options?.map((option) => (
+              <div
+                key={option.id}
+                className={`flex items-center gap-3 p-3 rounded-lg border ${
+                  option.option_key === correctAnswer
+                    ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                    : "bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600"
+                }`}
+              >
+                <div
+                  className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium ${
+                    option.option_key === correctAnswer
+                      ? "bg-green-600 text-white"
+                      : "bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300"
+                  }`}
+                >
+                  {option.option_key}
+                </div>
+                <span className="text-gray-900 dark:text-white flex-1">
+                  {option.content}
+                </span>
+                {option.option_key === correctAnswer && (
+                  <CheckCircle2
+                    className="text-green-600 flex-shrink-0"
+                    size={16}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+          {/* Correct Answer */}
+          {correctOption && (
+            <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+              <div className="flex items-center gap-2 text-green-800 dark:text-green-300">
+                <CheckCircle2 size={16} />
+                <span className="font-medium">Correct Answer:</span>
+                <span>{correctOption.content}</span>
+              </div>
             </div>
-            <span className="text-gray-900 dark:text-white flex-1">
-              {option.content}
-            </span>
-            {option.option_key === correctAnswer && (
-              <CheckCircle2
-                className="text-green-600 flex-shrink-0"
-                size={16}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Correct Answer */}
-      {correctOption && (
-        <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-          <div className="flex items-center gap-2 text-green-800 dark:text-green-300">
-            <CheckCircle2 size={16} />
-            <span className="font-medium">Correct Answer:</span>
-            <span>{correctOption.content}</span>
-          </div>
+          )}
         </div>
-      )}
+        <div>
+          {question.question_image_url && (
+            <div className="mb-4">
+              <a
+                href={question.question_image_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+              >
+                <img
+                  src={question.question_image_url}
+                  className="max-h-[290] rounded-md"
+                />
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Explanation */}
       {showExplanation && question.explanation && (
@@ -819,16 +823,18 @@ function QuestionCard({
           <p className="text-blue-800 dark:text-blue-200 leading-relaxed whitespace-pre-line">
             {question.explanation}
           </p>
-          {question.explanation_image_url && (
+          {question.image_url && (
             <div className="mt-3">
               <a
-                href={question.explanation_image_url}
+                href={question.image_url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
               >
-                <FileText size={16} />
-                View Explanation Image
+                <img
+                  src={question.image_url}
+                  className="max-h-[290] rounded-md"
+                />
               </a>
             </div>
           )}
