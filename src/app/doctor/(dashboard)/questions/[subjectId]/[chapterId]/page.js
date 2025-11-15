@@ -773,7 +773,27 @@ function QuestionCard({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
+        
+        <div className="order-1 md:order-2">
+          {/* Question Image */}
+          {question.question_image_url && (
+            <div className="mb-4">
+              <a
+                href={question.question_image_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+              >
+                <img
+                  src={question.question_image_url}
+                  className="max-h-[290] rounded-md"
+                />
+              </a>
+            </div>
+          )}
+        </div>
+
+        <div className="order-2 md:order-1">
           {/* Options */}
           <div className="grid gap-2 mb-4">
             {question.question_options?.map((option) => (
@@ -815,24 +835,6 @@ function QuestionCard({
                 <span className="font-medium">Correct Answer:</span>
                 <span>{correctOption.content}</span>
               </div>
-            </div>
-          )}
-        </div>
-        <div>
-          {/* Question Image */}
-          {question.question_image_url && (
-            <div className="mb-4">
-              <a
-                href={question.question_image_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
-              >
-                <img
-                  src={question.question_image_url}
-                  className="max-h-[290] rounded-md"
-                />
-              </a>
             </div>
           )}
         </div>
