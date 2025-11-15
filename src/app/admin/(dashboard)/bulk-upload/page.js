@@ -3,16 +3,16 @@
 import { useState } from "react";
 import Papa from "papaparse";
 import toast, { Toaster } from "react-hot-toast";
-import { 
-  Upload, 
-  FileText, 
-  CheckCircle, 
-  AlertTriangle, 
+import {
+  Upload,
+  FileText,
+  CheckCircle,
+  AlertTriangle,
   Download,
   Eye,
   Database,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
 } from "lucide-react";
 
 export default function BulkUploadPage() {
@@ -47,7 +47,7 @@ export default function BulkUploadPage() {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFile(e.dataTransfer.files[0]);
     }
@@ -56,145 +56,177 @@ export default function BulkUploadPage() {
   const handleFile = (file) => {
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      toast.error('Please upload a CSV file');
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      toast.error("Please upload a CSV file");
       return;
     }
 
-    const loadingToast = toast.loading('Parsing CSV file...');
+    const loadingToast = toast.loading("Parsing CSV file...");
+    const reader = new FileReader();
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (result) => {
-        toast.dismiss(loadingToast);
-        
-        if (!result.data || result.data.length === 0) {
-          toast.error("Empty CSV or invalid format");
-          return;
+    reader.onload = async (e) => {
+      try {
+        // 🔥 Decode CSV as UTF-8 ALWAYS (fixes Î” / Ã—)
+        let csvText = new TextDecoder("utf-8").decode(e.target.result);
+
+        // 🔥 Remove BOM if present (special Excel character)
+        if (csvText.charCodeAt(0) === 0xfeff) {
+          csvText = csvText.slice(1);
         }
 
-        const firstRow = result.data[0];
-        const normalizedHeaders = Object.keys(firstRow).map(normalizeKey);
-        setHeaders(normalizedHeaders);
-        console.log("🧠 Detected headers:", normalizedHeaders);
-        console.log("🧩 First row:", firstRow);
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          encoding: "UTF-8",
+          // 🔥 force Papa to treat everything as string
+          transform: (value) =>
+            typeof value === "string" ? value.normalize("NFC") : String(value),
 
-        const parsed = result.data.map((raw, i) => {
-          const normalized = {};
-          for (const k in raw) {
-            normalized[normalizeKey(k)] = (raw[k] || "").trim();
-          }
+          complete: (result) => {
+            toast.dismiss(loadingToast);
 
-          // ---- Handle Correct Answer ----
-          let correct = (
-            normalized.correct_option ||
-            normalized.correct_answer ||
-            normalized.answer ||
-            ""
-          )
-            .trim()
-            .toLowerCase();
+            if (!result.data || result.data.length === 0) {
+              toast.error("Empty CSV or invalid format");
+              return;
+            }
 
-          // Convert "option a", "a.", "A " -> "a"
-          correct = correct
-            .replace(/^option\s+/i, "") // remove "option "
-            .replace(/[^a-d]/g, ""); // remove everything except a–d
+            const firstRow = result.data[0];
+            const normalizedHeaders = Object.keys(firstRow).map(normalizeKey);
+            setHeaders(normalizedHeaders);
 
-          // If still not a/b/c/d, try to match by text content
-          if (!["a", "b", "c", "d"].includes(correct)) {
-            const normalizeText = (t) =>
-              t
-                ?.toLowerCase()
-                ?.replace(/[^a-z0-9\s]/g, "")
-                ?.replace(/\s+/g, " ")
-                ?.trim();
+            console.log("🧠 Detected headers:", normalizedHeaders);
+            console.log("🧩 First row:", firstRow);
 
-            const optionMap = {
-              a: normalizeText(normalized.option_a),
-              b: normalizeText(normalized.option_b),
-              c: normalizeText(normalized.option_c),
-              d: normalizeText(normalized.option_d),
-            };
+            const parsed = result.data.map((raw, i) => {
+              const normalized = {};
 
-            const correctText = normalizeText(
-              normalized.correct_option ||
+              // 🔥 Normalize every cell safely
+              for (const k in raw) {
+                normalized[normalizeKey(k)] = String(raw[k] || "")
+                  .normalize("NFC")
+                  .trim();
+              }
+
+              // ---- Handle Correct Answer ----
+              let correct = (
+                normalized.correct_option ||
                 normalized.correct_answer ||
                 normalized.answer ||
                 ""
-            );
+              )
+                .normalize("NFC")
+                .trim()
+                .toLowerCase();
 
-            // Try exact or partial match (contains / startsWith / endsWith)
-            const matched = Object.entries(optionMap).find(
-              ([, text]) =>
-                text &&
-                (text === correctText ||
-                  correctText === text ||
-                  text.includes(correctText) ||
-                  correctText.includes(text))
-            );
+              // Remove prefix "option a"
+              correct = correct
+                .replace(/^option\s+/i, "")
+                .replace(/[^a-d]/g, "");
 
-            if (matched) correct = matched[0];
-          }
+              // ---- Try text match if still not valid ----
+              if (!["a", "b", "c", "d"].includes(correct)) {
+                const normalizeText = (t) =>
+                  t
+                    ?.toLowerCase()
+                    ?.normalize("NFC")
+                    ?.replace(/[^a-z0-9\s]/g, "")
+                    ?.replace(/\s+/g, " ")
+                    ?.trim();
 
-          return {
-            __row: i + 2,
-            question_no:
-              normalized.question_no ||
-              normalized.question_number ||
-              normalized["qno"] ||
-              "",
-            subject: normalized.subject || normalized.subject_name || "",
-            chapter: normalized.chapter || normalized.chapter_name || "",
-            topic: normalized.topic || normalized.topic_name || "",
-            question_text:
-              normalized.question_text || normalized.question || "",
-            question_image_url:
-              normalized.question_image_url || normalized.question_image || "",
-            option_a: normalized.option_a || normalized.option1 || "",
-            option_b: normalized.option_b || normalized.option2 || "",
-            option_c: normalized.option_c || normalized.option3 || "",
-            option_d: normalized.option_d || normalized.option4 || "",
-            correct_option: correct,
-            explanation: normalized.explanation || "",
-            image_url: normalized.image_url || normalized.image || "",
-          };
+                const optionMap = {
+                  a: normalizeText(normalized.option_a),
+                  b: normalizeText(normalized.option_b),
+                  c: normalizeText(normalized.option_c),
+                  d: normalizeText(normalized.option_d),
+                };
+
+                const correctText = normalizeText(
+                  normalized.correct_option ||
+                    normalized.correct_answer ||
+                    normalized.answer ||
+                    ""
+                );
+
+                const matched = Object.entries(optionMap).find(
+                  ([, text]) =>
+                    text &&
+                    (text === correctText ||
+                      text.includes(correctText) ||
+                      correctText.includes(text))
+                );
+
+                if (matched) correct = matched[0];
+              }
+
+              return {
+                __row: i + 2,
+                question_no:
+                  normalized.question_no ||
+                  normalized.question_number ||
+                  normalized["qno"] ||
+                  "",
+                subject: normalized.subject || normalized.subject_name || "",
+                chapter: normalized.chapter || normalized.chapter_name || "",
+                topic: normalized.topic || normalized.topic_name || "",
+                question_text:
+                  normalized.question_text || normalized.question || "",
+                question_image_url:
+                  normalized.question_image_url ||
+                  normalized.question_image ||
+                  "",
+                option_a: normalized.option_a || normalized.option1 || "",
+                option_b: normalized.option_b || normalized.option2 || "",
+                option_c: normalized.option_c || normalized.option3 || "",
+                option_d: normalized.option_d || normalized.option4 || "",
+                correct_option: correct,
+                explanation: normalized.explanation || "",
+                image_url: normalized.image_url || normalized.image || "",
+              };
+            });
+
+            // ---- Validate ----
+            const errs = [];
+            const valid = [];
+
+            parsed.forEach((r) => {
+              const rowErrs = [];
+              if (!r.subject) rowErrs.push("Missing subject");
+              if (!r.chapter) rowErrs.push("Missing chapter");
+              if (!r.question_text) rowErrs.push("Missing question text");
+              if (!r.option_a || !r.option_b)
+                rowErrs.push("Options A & B required");
+              if (!["a", "b", "c", "d"].includes(r.correct_option))
+                rowErrs.push("Correct answer could not be detected");
+
+              if (rowErrs.length)
+                errs.push({ row: r.__row, msg: rowErrs.join(", ") });
+              else valid.push(r);
+            });
+
+            setErrors(errs);
+            setRows(valid);
+
+            if (errs.length) {
+              toast.error(`${errs.length} invalid rows found`);
+            } else {
+              toast.success(`${valid.length} valid questions ready to import`);
+            }
+          },
+
+          error: (err) => {
+            toast.dismiss(loadingToast);
+            console.error("CSV parse error:", err);
+            toast.error("Error reading CSV file");
+          },
         });
-
-        // ---- Validate each row ----
-        const errs = [];
-        const valid = [];
-
-        parsed.forEach((r) => {
-          const rowErrs = [];
-          if (!r.subject) rowErrs.push("Missing subject");
-          if (!r.chapter) rowErrs.push("Missing chapter");
-          if (!r.question_text) rowErrs.push("Missing question text");
-          if (!r.option_a || !r.option_b)
-            rowErrs.push("Options A & B required");
-          if (!["a", "b", "c", "d"].includes(r.correct_option))
-            rowErrs.push("Correct answer could not be detected");
-
-          if (rowErrs.length)
-            errs.push({ row: r.__row, msg: rowErrs.join(", ") });
-          else valid.push(r);
-        });
-
-        setErrors(errs);
-        setRows(valid);
-
-        if (errs.length) {
-          toast.error(`${errs.length} invalid rows found`);
-        } else {
-          toast.success(`${valid.length} valid questions ready to import`);
-        }
-      },
-      error: (err) => {
+      } catch (err) {
         toast.dismiss(loadingToast);
-        console.error("CSV parse error:", err);
-        toast.error("Error reading CSV file");
-      },
-    });
+        toast.error("Encoding issue in CSV");
+        console.error("Encoding Error:", err);
+      }
+    };
+
+    reader.readAsArrayBuffer(file); // 👈 MUST be ArrayBuffer for UTF-8 decoding
   };
 
   const upload = async () => {
@@ -204,12 +236,12 @@ export default function BulkUploadPage() {
     }
 
     setUploading(true);
-    const uploadToast = toast.loading('Uploading questions to database...');
-    
+    const uploadToast = toast.loading("Uploading questions to database...");
+
     try {
       const clean = rows.map(({ question_no, ...rest }) => rest);
       // console.log("🚀 Uploading rows:", clean);
-      
+
       const res = await fetch("/api/admin/questions/bulk-upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -218,12 +250,14 @@ export default function BulkUploadPage() {
 
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
-      
+
       toast.dismiss(uploadToast);
       toast.success(
         <div>
           <p className="font-semibold">🎉 Upload Successful!</p>
-          <p className="text-sm mt-1">{data.imported} questions imported to database</p>
+          <p className="text-sm mt-1">
+            {data.imported} questions imported to database
+          </p>
         </div>,
         { duration: 5000 }
       );
@@ -251,38 +285,39 @@ export default function BulkUploadPage() {
         option_c: "x = 6",
         option_d: "x = 7",
         correct_option: "a",
-        explanation: "Subtract 3 from both sides: 2x = 8, then divide by 2: x = 4",
-        image_url: ""
-      }
+        explanation:
+          "Subtract 3 from both sides: 2x = 8, then divide by 2: x = 4",
+        image_url: "",
+      },
     ];
 
     const csv = Papa.unparse(template);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'question_upload_template.csv');
-    link.style.visibility = 'hidden';
+    link.setAttribute("href", url);
+    link.setAttribute("download", "question_upload_template.csv");
+    link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success('Template downloaded successfully!');
+    toast.success("Template downloaded successfully!");
   };
 
   return (
     <div className="min-h-screen  dark:from-gray-900 dark:to-gray-800 p-4 lg:p-6">
-      <Toaster 
+      <Toaster
         position="top-right"
         toastOptions={{
           duration: 4000,
           style: {
-            background: 'var(--background)',
-            color: 'var(--foreground)',
-            border: '1px solid var(--border)',
+            background: "var(--background)",
+            color: "var(--foreground)",
+            border: "1px solid var(--border)",
           },
         }}
       />
-      
+
       <div className=" mx-auto">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
@@ -299,7 +334,7 @@ export default function BulkUploadPage() {
               </p>
             </div>
           </div>
-          
+
           <button
             onClick={downloadTemplate}
             className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium flex items-center gap-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
@@ -321,9 +356,9 @@ export default function BulkUploadPage() {
 
               <div
                 className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-300 ${
-                  dragActive 
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
-                    : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500'
+                  dragActive
+                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                    : "border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500"
                 }`}
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
@@ -400,7 +435,9 @@ export default function BulkUploadPage() {
                     ) : (
                       <Database className="w-5 h-5" />
                     )}
-                    {uploading ? "Uploading..." : `Import ${rows.length} Questions`}
+                    {uploading
+                      ? "Uploading..."
+                      : `Import ${rows.length} Questions`}
                   </button>
                 </div>
 
@@ -409,36 +446,55 @@ export default function BulkUploadPage() {
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 dark:bg-gray-700/50">
                         <tr>
-                          <th className="p-4 text-left font-semibold text-gray-900 dark:text-white">#</th>
-                          <th className="p-4 text-left font-semibold text-gray-900 dark:text-white">Subject</th>
-                          <th className="p-4 text-left font-semibold text-gray-900 dark:text-white">Chapter</th>
-                          <th className="p-4 text-left font-semibold text-gray-900 dark:text-white">Question</th>
-                          <th className="p-4 text-left font-semibold text-gray-900 dark:text-white">Correct</th>
+                          <th className="p-4 text-left font-semibold text-gray-900 dark:text-white">
+                            #
+                          </th>
+                          <th className="p-4 text-left font-semibold text-gray-900 dark:text-white">
+                            Subject
+                          </th>
+                          <th className="p-4 text-left font-semibold text-gray-900 dark:text-white">
+                            Chapter
+                          </th>
+                          <th className="p-4 text-left font-semibold text-gray-900 dark:text-white">
+                            Question
+                          </th>
+                          <th className="p-4 text-left font-semibold text-gray-900 dark:text-white">
+                            Correct
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {rows.slice(0, isExpanded ? rows.length : 5).map((r, i) => (
-                          <tr
-                            key={i}
-                            className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
-                          >
-                            <td className="p-4 font-medium text-gray-900 dark:text-white">
-                              {r.question_no || i + 1}
-                            </td>
-                            <td className="p-4 text-gray-700 dark:text-gray-300">{r.subject}</td>
-                            <td className="p-4 text-gray-700 dark:text-gray-300">{r.chapter}</td>
-                            <td className="p-4 max-w-[300px]">
-                              <p className="text-gray-700 dark:text-gray-300 truncate" title={r.question_text}>
-                                {r.question_text}
-                              </p>
-                            </td>
-                            <td className="p-4">
-                              <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg text-xs font-bold uppercase">
-                                {r.correct_option}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
+                        {rows
+                          .slice(0, isExpanded ? rows.length : 5)
+                          .map((r, i) => (
+                            <tr
+                              key={i}
+                              className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                            >
+                              <td className="p-4 font-medium text-gray-900 dark:text-white">
+                                {r.question_no || i + 1}
+                              </td>
+                              <td className="p-4 text-gray-700 dark:text-gray-300">
+                                {r.subject}
+                              </td>
+                              <td className="p-4 text-gray-700 dark:text-gray-300">
+                                {r.chapter}
+                              </td>
+                              <td className="p-4 max-w-[300px]">
+                                <p
+                                  className="text-gray-700 dark:text-gray-300 truncate"
+                                  title={r.question_text}
+                                >
+                                  {r.question_text}
+                                </p>
+                              </td>
+                              <td className="p-4">
+                                <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg text-xs font-bold uppercase">
+                                  {r.correct_option}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
                       </tbody>
                     </table>
                   </div>
@@ -477,13 +533,17 @@ export default function BulkUploadPage() {
               </h3>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Valid Questions</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Valid Questions
+                  </span>
                   <span className="text-2xl font-bold text-green-600 dark:text-green-400">
                     {rows.length}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Errors Found</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Errors Found
+                  </span>
                   <span className="text-2xl font-bold text-red-600 dark:text-red-400">
                     {errors.length}
                   </span>
@@ -525,9 +585,17 @@ export default function BulkUploadPage() {
                 CSV Format Guide
               </h3>
               <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
-                <p>• Include headers: <strong>subject, chapter, question_text</strong></p>
-                <p>• Required: <strong>option_a, option_b, correct_option</strong></p>
-                <p>• Correct option: <strong>a, b, c, or d</strong></p>
+                <p>
+                  • Include headers:{" "}
+                  <strong>subject, chapter, question_text</strong>
+                </p>
+                <p>
+                  • Required:{" "}
+                  <strong>option_a, option_b, correct_option</strong>
+                </p>
+                <p>
+                  • Correct option: <strong>a, b, c, or d</strong>
+                </p>
                 <p>• Optional: topic, explanation, image_url</p>
                 <p>• Download template for reference</p>
               </div>
@@ -543,7 +611,7 @@ export default function BulkUploadPage() {
               Ready to Import Questions
             </h3>
             <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
-              Upload a CSV file to preview and import questions in bulk. 
+              Upload a CSV file to preview and import questions in bulk.
               Download the template to ensure proper formatting.
             </p>
           </div>

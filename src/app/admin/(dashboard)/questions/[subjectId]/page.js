@@ -87,7 +87,7 @@ export default function ChaptersPage({ params }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-6 transition-colors duration-200">
+    <div className="min-h-screen  dark:from-gray-900 dark:to-gray-800 p-6 transition-colors duration-200">
       <div className=" mx-auto">
         {/* Header Section */}
         <div className="mb-8">
