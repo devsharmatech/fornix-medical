@@ -15,91 +15,168 @@ export async function POST(req) {
     const chapterCache = new Map();
     const topicCache = new Map();
 
-    // ✅ Cache + creation helpers
-    async function getOrCreateSubject(name) {
-      if (!name) return null;
-      const key = name.toLowerCase();
-      if (subjectCache.has(key)) return subjectCache.get(key);
+    // ✅ Cache + creation helpers - ONLY subject has course_id
+    async function getOrCreateSubject(name, courseId) {
+      if (!name || !courseId) return null;
+      
+      // Create unique cache key with course_id to prevent duplicates across courses
+      const cacheKey = `${courseId}-${name.toLowerCase().trim()}`;
+      if (subjectCache.has(cacheKey)) return subjectCache.get(cacheKey);
 
-      const { data: existing } = await supabase
+      // Check if subject already exists for this specific course
+      const { data: existing, error } = await supabase
         .from("subjects")
         .select("id")
-        .ilike("name", name)
+        .eq("course_id", courseId)
+        .ilike("name", name.trim())
         .maybeSingle();
 
+      if (error) {
+        console.error("Error checking existing subject:", error);
+        throw error;
+      }
+
       if (existing) {
-        subjectCache.set(key, existing.id);
+        subjectCache.set(cacheKey, existing.id);
         return existing.id;
       }
 
-      const { data, error } = await supabase
+      // Create new subject with course_id
+      const { data: newSubject, error: createError } = await supabase
         .from("subjects")
-        .insert([{ name, created_by: admin.sub, updated_by: admin.sub }])
+        .insert([{ 
+          name: name.trim(), 
+          course_id: courseId, // ONLY subject has course_id
+          created_by: admin.sub, 
+          updated_by: admin.sub 
+        }])
         .select("id")
         .single();
-      if (error) throw error;
-      subjectCache.set(key, data.id);
-      return data.id;
+
+      if (createError) {
+        console.error("Error creating subject:", createError);
+        throw createError;
+      }
+
+      subjectCache.set(cacheKey, newSubject.id);
+      return newSubject.id;
     }
 
     async function getOrCreateChapter(subjectId, name) {
       if (!subjectId || !name) return null;
-      const key = `${subjectId}-${name.toLowerCase()}`;
-      if (chapterCache.has(key)) return chapterCache.get(key);
+      
+      const cacheKey = `${subjectId}-${name.toLowerCase().trim()}`;
+      if (chapterCache.has(cacheKey)) return chapterCache.get(cacheKey);
 
-      const { data: existing } = await supabase
+      // Check if chapter already exists for this subject
+      const { data: existing, error } = await supabase
         .from("chapters")
         .select("id")
         .eq("subject_id", subjectId)
-        .ilike("name", name)
+        .ilike("name", name.trim())
         .maybeSingle();
 
+      if (error) {
+        console.error("Error checking existing chapter:", error);
+        throw error;
+      }
+
       if (existing) {
-        chapterCache.set(key, existing.id);
+        chapterCache.set(cacheKey, existing.id);
         return existing.id;
       }
 
-      const { data, error } = await supabase
+      // Create new chapter - NO course_id
+      const { data: newChapter, error: createError } = await supabase
         .from("chapters")
-        .insert([{ subject_id: subjectId, name, created_by: admin.sub, updated_by: admin.sub }])
+        .insert([
+          {
+            subject_id: subjectId,
+            name: name.trim(),
+            created_by: admin.sub,
+            updated_by: admin.sub,
+          },
+        ])
         .select("id")
         .single();
-      if (error) throw error;
-      chapterCache.set(key, data.id);
-      return data.id;
+
+      if (createError) {
+        console.error("Error creating chapter:", createError);
+        throw createError;
+      }
+
+      chapterCache.set(cacheKey, newChapter.id);
+      return newChapter.id;
     }
 
     async function getOrCreateTopic(chapterId, name) {
       if (!chapterId || !name) return null;
-      const key = `${chapterId}-${name.toLowerCase()}`;
-      if (topicCache.has(key)) return topicCache.get(key);
+      
+      const cacheKey = `${chapterId}-${name.toLowerCase().trim()}`;
+      if (topicCache.has(cacheKey)) return topicCache.get(cacheKey);
 
-      const { data: existing } = await supabase
+      const { data: existing, error } = await supabase
         .from("topics")
         .select("id")
         .eq("chapter_id", chapterId)
-        .ilike("name", name)
+        .ilike("name", name.trim())
         .maybeSingle();
 
+      if (error) {
+        console.error("Error checking existing topic:", error);
+        throw error;
+      }
+
       if (existing) {
-        topicCache.set(key, existing.id);
+        topicCache.set(cacheKey, existing.id);
         return existing.id;
       }
 
-      const { data, error } = await supabase
+      // Create new topic - NO course_id
+      const { data: newTopic, error: createError } = await supabase
         .from("topics")
-        .insert([{ chapter_id: chapterId, name, created_by: admin.sub, updated_by: admin.sub }])
+        .insert([
+          {
+            chapter_id: chapterId,
+            name: name.trim(),
+            created_by: admin.sub,
+            updated_by: admin.sub,
+          },
+        ])
         .select("id")
         .single();
-      if (error) throw error;
-      topicCache.set(key, data.id);
-      return data.id;
+
+      if (createError) {
+        console.error("Error creating topic:", createError);
+        throw createError;
+      }
+
+      topicCache.set(cacheKey, newTopic.id);
+      return newTopic.id;
+    }
+
+    // ✅ Validate course exists and user has access
+    async function validateCourse(courseId) {
+      if (!courseId) return false;
+
+      const { data: course, error } = await supabase
+        .from("courses")
+        .select("id, name")
+        .eq("id", courseId)
+        .single();
+
+      if (error || !course) {
+        console.error("Course not found or access denied:", courseId);
+        return false;
+      }
+
+      return true;
     }
 
     // ✅ Main import loop
     for (const raw of rows) {
       const {
-        question_no,
+        course_id,
         subject,
         chapter,
         topic,
@@ -109,94 +186,217 @@ export async function POST(req) {
         option_b,
         option_c,
         option_d,
+        option_e,
+        option_f,
+        option_g,
+        option_h,
         correct_option,
         explanation,
         image_url,
       } = raw;
 
-      if (!subject || !chapter || !question_text) continue;
-
-      const correct = (correct_option || "").trim().toLowerCase();
-      if (!["a", "b", "c", "d"].includes(correct)) continue;
-
-      const subjectId = await getOrCreateSubject(subject);
-      const chapterId = await getOrCreateChapter(subjectId, chapter);
-      const topicId = topic ? await getOrCreateTopic(chapterId, topic) : null;
-
-      const { data: q, error: qErr } = await supabase
-        .from("questions")
-        .insert([
-          {
-            subject_id: subjectId,
-            chapter_id: chapterId,
-            topic_id: topicId,
-            question_text: question_text.trim(),
-            question_image_url: question_image_url?.trim() || null,
-            explanation: explanation?.trim() || null,
-            image_url: image_url?.trim() || null,
-            created_by: admin.sub,
-            updated_by: admin.sub,
-          },
-        ])
-        .select("id")
-        .single();
-
-      if (qErr) {
-        console.error("❌ Failed inserting question:", qErr);
+      // Validate required fields - course_id is now mandatory
+      if (!course_id) {
+        console.warn("❌ Skipping row - course_id is required");
         continue;
       }
 
-      // ✅ Fixed: Keep all options a–d (even if blank)
-      const options = [
-        { key: "a", text: option_a },
-        { key: "b", text: option_b },
-        { key: "c", text: option_c },
-        { key: "d", text: option_d },
-      ]
-        .map((o) => ({
-          key: o.key.toLowerCase(),
-          text: typeof o.text === "string" ? o.text.trim() : "",
-        }))
-        .filter((o) => ["a", "b", "c", "d"].includes(o.key)); // keep all valid keys
-
-      // 🔹 Insert options (even if empty text)
-      if (options.length > 0) {
-        const { error: optErr } = await supabase
-          .from("question_options")
-          .insert(
-            options.map((o) => ({
-              question_id: q.id,
-              option_key: o.key,
-              content: o.text || "", // keep blank string
-              created_by: admin.sub,
-              updated_by: admin.sub,
-            }))
-          );
-        if (optErr) console.error("⚠️ Option insert failed:", optErr);
+      if (!subject || !chapter || !question_text || !question_text.trim()) {
+        console.warn("❌ Skipping row - missing required fields:", {
+          subject,
+          chapter,
+          question_text,
+          course_id,
+        });
+        continue;
       }
 
-      // 🔹 Insert correct answer
-      const { error: corrErr } = await supabase.from("correct_answers").insert([
-        {
-          question_id: q.id,
-          correct_key: correct,
-          created_by: admin.sub,
-          updated_by: admin.sub,
-        },
-      ]);
-      if (corrErr) console.error("⚠️ Correct answer insert failed:", corrErr);
+      // Validate course exists
+      const courseValid = await validateCourse(course_id);
+      if (!courseValid) {
+        console.warn("❌ Skipping row - invalid course_id:", course_id);
+        continue;
+      }
 
-      imported++;
+      // Validate correct option (now supports A-H)
+      const correct = (correct_option || "").trim().toLowerCase();
+      if (!["a", "b", "c", "d", "e", "f", "g", "h"].includes(correct)) {
+        console.warn("❌ Skipping row - invalid correct option:", correct);
+        continue;
+      }
+
+      // Validate that the correct option has content
+      const correctOptionContent = raw[`option_${correct}`];
+      if (!correctOptionContent || !correctOptionContent.trim()) {
+        console.warn(
+          `❌ Skipping row - correct option ${correct.toUpperCase()} is empty`
+        );
+        continue;
+      }
+
+      // Validate at least option A and B exist
+      if (!option_a || !option_a.trim() || !option_b || !option_b.trim()) {
+        console.warn("❌ Skipping row - options A and B are required");
+        continue;
+      }
+
+      try {
+        // Get or create subject with course_id - this ensures no duplicates within course
+        const subjectId = await getOrCreateSubject(subject, course_id);
+        if (!subjectId) {
+          console.warn("❌ Failed to get/create subject:", subject);
+          continue;
+        }
+
+        // Get or create chapter - NO course_id
+        const chapterId = await getOrCreateChapter(subjectId, chapter);
+        if (!chapterId) {
+          console.warn("❌ Failed to get/create chapter:", chapter);
+          continue;
+        }
+
+        // Get or create topic - NO course_id (if topic provided)
+        const topicId = topic ? await getOrCreateTopic(chapterId, topic) : null;
+
+        // Insert question - NO course_id on question
+        const { data: question, error: questionError } = await supabase
+          .from("questions")
+          .insert([
+            {
+              subject_id: subjectId,
+              chapter_id: chapterId,
+              topic_id: topicId,
+              question_text: question_text.trim(),
+              question_image_url: question_image_url?.trim() || null,
+              explanation: explanation?.trim() || null,
+              image_url: image_url?.trim() || null,
+              created_by: admin.sub,
+              updated_by: admin.sub,
+            },
+          ])
+          .select("id")
+          .single();
+
+        if (questionError) {
+          console.error("❌ Failed inserting question:", questionError);
+          continue;
+        }
+
+        // ✅ Prepare options A-H (only include those with content)
+        const allPossibleOptions = [
+          { key: "a", text: option_a },
+          { key: "b", text: option_b },
+          { key: "c", text: option_c },
+          { key: "d", text: option_d },
+          { key: "e", text: option_e },
+          { key: "f", text: option_f },
+          { key: "g", text: option_g },
+          { key: "h", text: option_h },
+        ];
+
+        const optionsToInsert = allPossibleOptions
+          .map((o) => ({
+            key: o.key.toLowerCase(),
+            text: typeof o.text === "string" ? o.text.trim() : "",
+          }))
+          .filter((o) => o.text !== ""); // Only include options with content
+
+        // Ensure we have at least 2 options
+        if (optionsToInsert.length < 2) {
+          console.warn(
+            "❌ Skipping question - need at least 2 options with content"
+          );
+          // Delete the question we just inserted
+          await supabase.from("questions").delete().eq("id", question.id);
+          continue;
+        }
+
+        // Ensure the correct option is among the options we're inserting
+        const correctOptionExists = optionsToInsert.some(
+          (opt) => opt.key === correct
+        );
+        if (!correctOptionExists) {
+          console.warn(
+            `❌ Skipping question - correct option ${correct.toUpperCase()} not found in available options`
+          );
+          // Delete the question we just inserted
+          await supabase.from("questions").delete().eq("id", question.id);
+          continue;
+        }
+
+        // 🔹 Insert options (only those with content)
+        if (optionsToInsert.length > 0) {
+          const { error: optionsError } = await supabase
+            .from("question_options")
+            .insert(
+              optionsToInsert.map((o) => ({
+                question_id: question.id,
+                option_key: o.key,
+                content: o.text,
+                created_by: admin.sub,
+                updated_by: admin.sub,
+              }))
+            );
+
+          if (optionsError) {
+            console.error("⚠️ Options insert failed:", optionsError);
+            // Delete the question if options fail
+            await supabase.from("questions").delete().eq("id", question.id);
+            continue;
+          }
+        }
+
+        // 🔹 Insert correct answer
+        const { error: correctAnswerError } = await supabase
+          .from("correct_answers")
+          .insert([
+            {
+              question_id: question.id,
+              correct_key: correct,
+              created_by: admin.sub,
+              updated_by: admin.sub,
+            },
+          ]);
+
+        if (correctAnswerError) {
+          console.error("⚠️ Correct answer insert failed:", correctAnswerError);
+          // Delete the question if correct answer fails
+          await supabase.from("questions").delete().eq("id", question.id);
+          continue;
+        }
+
+        imported++;
+        
+      } catch (error) {
+        console.error("❌ Error processing row:", error);
+        continue;
+      }
     }
 
-    return new Response(JSON.stringify({ success: true, imported }), {
-      status: 200,
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        imported,
+        totalProcessed: rows.length,
+        failed: rows.length - imported,
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   } catch (err) {
     console.error("Bulk upload error:", err);
     return new Response(
-      JSON.stringify({ success: false, error: err.message }),
-      { status: 500 }
+      JSON.stringify({
+        success: false,
+        error: err.message,
+        imported: 0,
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
     );
   }
 }

@@ -116,6 +116,10 @@ export function QuestionForm({ initial = null, parent = {}, onCancel, onSubmit, 
     { option_key: "b", content: "" },
     { option_key: "c", content: "" },
     { option_key: "d", content: "" },
+    { option_key: "e", content: "" },
+    { option_key: "f", content: "" },
+    { option_key: "g", content: "" },
+    { option_key: "h", content: "" },
   ]);
 
   // Initialize form with initial data
@@ -129,9 +133,9 @@ export function QuestionForm({ initial = null, parent = {}, onCancel, onSubmit, 
       setStatus(initial.status || "pending");
       setCorrectKey(initial.correct_answers?.correct_key || "");
 
-      // Handle options initialization
+      // Handle options initialization for A-H
       if (initial.question_options && initial.question_options.length > 0) {
-        const initializedOptions = ["a", "b", "c", "d"].map((key) => {
+        const initializedOptions = ["a", "b", "c", "d", "e", "f", "g", "h"].map((key) => {
           const foundOption = initial.question_options.find(opt => opt.option_key === key);
           return {
             option_key: key,
@@ -146,6 +150,10 @@ export function QuestionForm({ initial = null, parent = {}, onCancel, onSubmit, 
           { option_key: "b", content: "" },
           { option_key: "c", content: "" },
           { option_key: "d", content: "" },
+          { option_key: "e", content: "" },
+          { option_key: "f", content: "" },
+          { option_key: "g", content: "" },
+          { option_key: "h", content: "" },
         ]);
       }
     } else {
@@ -161,6 +169,10 @@ export function QuestionForm({ initial = null, parent = {}, onCancel, onSubmit, 
         { option_key: "b", content: "" },
         { option_key: "c", content: "" },
         { option_key: "d", content: "" },
+        { option_key: "e", content: "" },
+        { option_key: "f", content: "" },
+        { option_key: "g", content: "" },
+        { option_key: "h", content: "" },
       ]);
     }
   }, [initial]);
@@ -181,10 +193,10 @@ export function QuestionForm({ initial = null, parent = {}, onCancel, onSubmit, 
 
     if (normalized.length < 2) return toast.error("At least two options are required");
 
-    // if correct_key provided, validate it
+    // if correct_key provided, validate it (now supports A-H)
     const ck = (String(correct_key || "")).toLowerCase();
-    if (ck && !["a", "b", "c", "d"].includes(ck)) {
-      return toast.error("Correct key must be a, b, c or d");
+    if (ck && !["a", "b", "c", "d", "e", "f", "g", "h"].includes(ck)) {
+      return toast.error("Correct key must be a letter from A to H");
     }
 
     // build payload
@@ -209,6 +221,16 @@ export function QuestionForm({ initial = null, parent = {}, onCancel, onSubmit, 
     { value: "pending", label: "🟡 Pending" },
     { value: "approved", label: "🟢 Approved" },
     { value: "rejected", label: "🔴 Rejected" }
+  ];
+
+  // Generate correct answer options dynamically based on available options
+  const availableOptions = options.filter(opt => opt.content.trim());
+  const correctAnswerOptions = [
+    { value: "", label: "Select correct option" },
+    ...availableOptions.map(opt => ({
+      value: opt.option_key,
+      label: `Option ${opt.option_key.toUpperCase()}`
+    }))
   ];
 
   return (
@@ -252,13 +274,19 @@ export function QuestionForm({ initial = null, parent = {}, onCancel, onSubmit, 
             )}
           </div>
 
-          {/* Options Grid */}
+          {/* Options Grid - Now 8 options */}
           <div>
-            <div className="text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">Options *</div>
+            <div className="text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">
+              Options * (At least 2 required, supports up to 8 options A-H)
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {options.map((opt) => (
                 <div key={opt.option_key} className="relative">
-                  <div className="absolute -top-2 left-3 px-2 bg-blue-600 text-white text-xs font-medium rounded-full z-10">
+                  <div className={`absolute -top-2 left-3 px-2 text-xs font-medium rounded-full z-10 ${
+                    opt.content.trim() 
+                      ? "bg-blue-600 text-white" 
+                      : "bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-300"
+                  }`}>
                     Option {opt.option_key.toUpperCase()}
                   </div>
                   <input
@@ -270,6 +298,9 @@ export function QuestionForm({ initial = null, parent = {}, onCancel, onSubmit, 
                 </div>
               ))}
             </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              Only options with content will be saved. Options A and B are required.
+            </p>
           </div>
 
           {/* Settings Row */}
@@ -284,12 +315,17 @@ export function QuestionForm({ initial = null, parent = {}, onCancel, onSubmit, 
                 onChange={(e) => setCorrectKey(e.target.value)}
                 className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               >
-                <option value="">Select correct option</option>
-                <option value="a">Option A</option>
-                <option value="b">Option B</option>
-                <option value="c">Option C</option>
-                <option value="d">Option D</option>
+                {correctAnswerOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
+              {correct_key && !availableOptions.some(opt => opt.option_key === correct_key) && (
+                <p className="text-xs text-red-500 mt-1">
+                  Selected option is empty. Please add content to this option.
+                </p>
+              )}
             </div>
 
             <div>

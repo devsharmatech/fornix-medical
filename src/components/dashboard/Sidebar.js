@@ -53,6 +53,7 @@ export default function Sidebar({
     ? [
         { name: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard" },
         { name: "Doctors", icon: Users, href: "/admin/doctors" },
+        { name: "Courses", icon: BarChart3, href: "/admin/courses" },
         { name: "Subjects", icon: BarChart3, href: "/admin/questions" },
         { name: "Bulk Upload", icon: Upload, href: "/admin/bulk-upload" },
       ]

@@ -24,6 +24,21 @@ export async function POST(req) {
     if (!Array.isArray(options) || options.length < 2)
       throw new Error("At least two options required");
 
+    // Validate correct_key supports A-H
+    if (correct_key && !["a", "b", "c", "d", "e", "f", "g", "h"].includes(correct_key.toLowerCase())) {
+      throw new Error("Correct key must be a letter from A to H");
+    }
+
+    // Validate that correct_key exists in provided options
+    if (correct_key) {
+      const correctOptionExists = options.some(opt => 
+        opt.option_key.toLowerCase() === correct_key.toLowerCase()
+      );
+      if (!correctOptionExists) {
+        throw new Error(`Correct option '${correct_key.toUpperCase()}' not found in provided options`);
+      }
+    }
+
     // insert question
     const { data: q, error: qErr } = await supabase
       .from("questions")
@@ -45,10 +60,10 @@ export async function POST(req) {
       .single();
     if (qErr) throw qErr;
 
-    // insert options
+    // insert options - now supports A-H
     const optInsert = options.map((o) => ({
       question_id: q.id,
-      option_key: o.option_key,
+      option_key: o.option_key.toLowerCase(), // Ensure lowercase
       content: o.content,
       created_by: admin.sub || admin.id || null,
       updated_by: admin.sub || admin.id || null,
@@ -62,12 +77,12 @@ export async function POST(req) {
       throw optErr;
     }
 
-    // insert correct answer
-    if (correct_key && ["a", "b", "c", "d"].includes(correct_key)) {
+    // insert correct answer - now supports A-H
+    if (correct_key && ["a", "b", "c", "d", "e", "f", "g", "h"].includes(correct_key.toLowerCase())) {
       const { error: caErr } = await supabase.from("correct_answers").insert([
         {
           question_id: q.id,
-          correct_key,
+          correct_key: correct_key.toLowerCase(), // Ensure lowercase
           created_by: admin.sub || admin.id || null,
           updated_by: admin.sub || admin.id || null,
         },
@@ -82,14 +97,36 @@ export async function POST(req) {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, question: q }), {
+    // Fetch the complete question with options and correct answer
+    const { data: completeQuestion, error: fetchError } = await supabase
+      .from("questions")
+      .select(`
+        *,
+        question_options (*),
+        correct_answers (*)
+      `)
+      .eq("id", q.id)
+      .single();
+
+    if (fetchError) {
+      console.error("Error fetching complete question:", fetchError);
+    }
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      question: completeQuestion || q 
+    }), {
       status: 201,
+      headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
     console.error("questions POST err:", err);
     return new Response(
       JSON.stringify({ success: false, error: err.message }),
-      { status: 400 }
+      { 
+        status: 400,
+        headers: { "Content-Type": "application/json" }
+      }
     );
   }
 }
@@ -148,10 +185,13 @@ export async function GET(req) {
 
     const combined = questions.map((q) => ({
       ...q,
-      options: (optionMap.get(String(q.id)) || []).sort((a, b) =>
+      question_options: (optionMap.get(String(q.id)) || []).sort((a, b) =>
         a.option_key.localeCompare(b.option_key)
       ),
-      correct_option: correctMap.get(String(q.id)) || null,
+      correct_answers: {
+        correct_key: correctMap.get(String(q.id)) || null
+      },
+      correct_option: correctMap.get(String(q.id)) || null, // Keep for backward compatibility
     }));
 
     return new Response(JSON.stringify({ success: true, data: combined }), {
@@ -163,6 +203,135 @@ export async function GET(req) {
     return new Response(
       JSON.stringify({ success: false, error: err.message }),
       { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+}
+
+export async function PUT(req) {
+  try {
+    const admin = ensureAdmin(req);
+    const body = await req.json();
+    const url = new URL(req.url);
+    const questionId = url.pathname.split('/').pop();
+
+    if (!questionId) throw new Error("Question ID required");
+
+    const {
+      subject_id,
+      chapter_id,
+      topic_id = null,
+      question_text,
+      explanation = null,
+      image_url = null,
+      question_image_url = null,
+      options = [],
+      correct_key = null,
+      status = null,
+    } = body;
+
+    if (!subject_id || !chapter_id || !question_text)
+      throw new Error("subject_id, chapter_id, question_text required");
+    if (!Array.isArray(options) || options.length < 2)
+      throw new Error("At least two options required");
+
+    // Validate correct_key supports A-H
+    if (correct_key && !["a", "b", "c", "d", "e", "f", "g", "h"].includes(correct_key.toLowerCase())) {
+      throw new Error("Correct key must be a letter from A to H");
+    }
+
+    // Validate that correct_key exists in provided options
+    if (correct_key) {
+      const correctOptionExists = options.some(opt => 
+        opt.option_key.toLowerCase() === correct_key.toLowerCase()
+      );
+      if (!correctOptionExists) {
+        throw new Error(`Correct option '${correct_key.toUpperCase()}' not found in provided options`);
+      }
+    }
+
+    // Update question
+    const { data: updatedQuestion, error: updateError } = await supabase
+      .from("questions")
+      .update({
+        subject_id,
+        chapter_id,
+        topic_id,
+        question_text,
+        explanation,
+        image_url,
+        question_image_url,
+        status,
+        updated_by: admin.sub || admin.id || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", questionId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    // Delete existing options and correct answers
+    await Promise.all([
+      supabase.from("question_options").delete().eq("question_id", questionId),
+      supabase.from("correct_answers").delete().eq("question_id", questionId)
+    ]);
+
+    // Insert new options - now supports A-H
+    const optInsert = options.map((o) => ({
+      question_id: questionId,
+      option_key: o.option_key.toLowerCase(),
+      content: o.content,
+      created_by: admin.sub || admin.id || null,
+      updated_by: admin.sub || admin.id || null,
+    }));
+    const { error: optErr } = await supabase
+      .from("question_options")
+      .insert(optInsert);
+    if (optErr) throw optErr;
+
+    // Insert correct answer - now supports A-H
+    if (correct_key && ["a", "b", "c", "d", "e", "f", "g", "h"].includes(correct_key.toLowerCase())) {
+      const { error: caErr } = await supabase.from("correct_answers").insert([
+        {
+          question_id: questionId,
+          correct_key: correct_key.toLowerCase(),
+          created_by: admin.sub || admin.id || null,
+          updated_by: admin.sub || admin.id || null,
+        },
+      ]);
+      if (caErr) throw caErr;
+    }
+
+    // Fetch complete updated question
+    const { data: completeQuestion, error: fetchError } = await supabase
+      .from("questions")
+      .select(`
+        *,
+        question_options (*),
+        correct_answers (*)
+      `)
+      .eq("id", questionId)
+      .single();
+
+    if (fetchError) {
+      console.error("Error fetching complete question:", fetchError);
+    }
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      question: completeQuestion || updatedQuestion 
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    console.error("questions PUT err:", err);
+    return new Response(
+      JSON.stringify({ success: false, error: err.message }),
+      { 
+        status: 400,
+        headers: { "Content-Type": "application/json" }
+      }
     );
   }
 }

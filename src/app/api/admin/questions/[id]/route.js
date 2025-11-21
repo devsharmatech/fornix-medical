@@ -110,7 +110,7 @@ export async function PUT(req, { params }) {
       if (Array.isArray(options)) {
         console.log("🟡 RAW OPTIONS:", options);
 
-        // Normalize safely
+        // Normalize safely - now supports A-H
         const normalized = options
           .map((o) => ({
             option_key: String(o.option_key || "")
@@ -119,7 +119,7 @@ export async function PUT(req, { params }) {
             content: typeof o.content === "string" ? o.content.trim() : "",
           }))
           .filter(
-            (o) => o.option_key && ["a", "b", "c", "d"].includes(o.option_key)
+            (o) => o.option_key && ["a", "b", "c", "d", "e", "f", "g", "h"].includes(o.option_key)
           );
 
         // Warn if any options dropped
@@ -169,12 +169,12 @@ export async function PUT(req, { params }) {
       );
     }
 
-    // 🔹 Replace correct answer if present
+    // 🔹 Replace correct answer if present - now supports A-H
     if (Object.prototype.hasOwnProperty.call(body, "correct_key")) {
       await supabase.from("correct_answers").delete().eq("question_id", id);
 
       const cleanKey = String(correct_key || "").toLowerCase();
-      if (["a", "b", "c", "d"].includes(cleanKey)) {
+      if (["a", "b", "c", "d", "e", "f", "g", "h"].includes(cleanKey)) {
         const { error: insCorrErr } = await supabase
           .from("correct_answers")
           .insert([
@@ -186,6 +186,8 @@ export async function PUT(req, { params }) {
             },
           ]);
         if (insCorrErr) throw insCorrErr;
+      } else if (correct_key !== null && correct_key !== "") {
+        console.warn(`⚠️ Invalid correct_key provided: ${correct_key}`);
       }
     }
 

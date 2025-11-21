@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Papa from "papaparse";
 import toast, { Toaster } from "react-hot-toast";
+
 import {
   Upload,
   FileText,
@@ -13,9 +14,18 @@ import {
   Database,
   ChevronDown,
   ChevronUp,
+  BookOpen,
+  CheckSquare,
+  XCircle,
 } from "lucide-react";
 
 export default function BulkUploadPage() {
+  // -----------------------------
+  // STATE
+  // -----------------------------
+  const [courses, setCourses] = useState([]);
+  const [selectedCourse, setSelectedCourse] = useState("");
+
   const [rows, setRows] = useState([]);
   const [errors, setErrors] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -23,70 +33,130 @@ export default function BulkUploadPage() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [dragActive, setDragActive] = useState(false);
 
-  // Normalize keys: converts "Correct Answer" -> "correct_answer"
+  // -----------------------------
+  // LOAD COURSES
+  // -----------------------------
+  useEffect(() => {
+    async function loadCourses() {
+      try {
+        const res = await fetch("/api/admin/courses");
+        const json = await res.json();
+        if (json.success) setCourses(json.data);
+      } catch (err) {
+        toast.error("Failed to load courses");
+      }
+    }
+    loadCourses();
+  }, []);
+
+  // Normalize CSV keys
   const normalizeKey = (key) =>
     key
       ?.toLowerCase()
-      ?.trim()
-      ?.replaceAll(" ", "_")
-      ?.replaceAll(".", "")
-      ?.replaceAll("-", "_")
-      ?.replaceAll("__", "_");
+      .trim()
+      .replaceAll(" ", "_")
+      .replaceAll(".", "")
+      .replaceAll("-", "_")
+      .replaceAll("__", "_");
 
+  // -----------------------------
+  // DRAG HANDLERS
+  // -----------------------------
   const handleDrag = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
+    if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
+    else if (e.type === "dragleave") setDragActive(false);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFile(e.dataTransfer.files[0]);
-    }
+    if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0]);
   };
 
-  const handleFile = (file) => {
-    if (!file) return;
+  // Extract correct option from various formats like "C. October 16th", "C", "c", "Option C", etc.
+  const extractCorrectOption = (value) => {
+    if (!value) return "";
+    
+    const str = value.toString().trim();
+    
+    // Handle formats like "C. October 16th", "A) Some text", "B - Answer"
+    const match = str.match(/^([a-hA-H])[\.\-\s\)]/);
+    if (match) {
+      return match[1].toLowerCase();
+    }
+    
+    // Handle simple letters "A", "b", "C", etc.
+    if (/^[a-hA-H]$/.test(str)) {
+      return str.toLowerCase();
+    }
+    
+    // Handle "Option A", "option b", etc.
+    const optionMatch = str.match(/option\s+([a-hA-H])/i);
+    if (optionMatch) {
+      return optionMatch[1].toLowerCase();
+    }
+    
+    // If no pattern matches, try to extract any single letter a-h
+    const letterMatch = str.match(/[a-hA-H]/);
+    if (letterMatch) {
+      return letterMatch[0].toLowerCase();
+    }
+    
+    return "";
+  };
 
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      toast.error("Please upload a CSV file");
+  // Detect available options from CSV headers and data
+  const detectAvailableOptions = (normalizedRow, allHeaders) => {
+    const optionKeys = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    const availableOptions = {};
+    
+    // Check for option columns in headers
+    optionKeys.forEach(key => {
+      const optionKey = `option_${key}`;
+      if (allHeaders.includes(optionKey) && normalizedRow[optionKey]?.trim()) {
+        availableOptions[optionKey] = normalizedRow[optionKey];
+      }
+    });
+    
+    return availableOptions;
+  };
+
+  // -----------------------------
+  // PARSE CSV
+  // -----------------------------
+  const handleFile = (file) => {
+    if (!selectedCourse) {
+      toast.error("Select a course before uploading CSV");
       return;
     }
 
-    const loadingToast = toast.loading("Parsing CSV file...");
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      toast.error("File must be a CSV");
+      return;
+    }
+
+    const loadingToast = toast.loading("Parsing CSV...");
     const reader = new FileReader();
 
-    reader.onload = async (e) => {
+    reader.onload = (e) => {
       try {
-        // 🔥 Decode CSV as UTF-8 ALWAYS (fixes Î” / Ã—)
         let csvText = new TextDecoder("utf-8").decode(e.target.result);
-
-        // 🔥 Remove BOM if present (special Excel character)
-        if (csvText.charCodeAt(0) === 0xfeff) {
-          csvText = csvText.slice(1);
-        }
+        if (csvText.charCodeAt(0) === 0xfeff) csvText = csvText.slice(1);
 
         Papa.parse(csvText, {
           header: true,
           skipEmptyLines: true,
-          encoding: "UTF-8",
-          // 🔥 force Papa to treat everything as string
-          transform: (value) =>
-            typeof value === "string" ? value.normalize("NFC") : String(value),
+
+          transform: (value) => (typeof value === "string" ? value.normalize("NFC") : String(value)),
 
           complete: (result) => {
             toast.dismiss(loadingToast);
 
-            if (!result.data || result.data.length === 0) {
-              toast.error("Empty CSV or invalid format");
+            if (!result.data.length) {
+              toast.error("CSV is empty");
               return;
             }
 
@@ -94,112 +164,86 @@ export default function BulkUploadPage() {
             const normalizedHeaders = Object.keys(firstRow).map(normalizeKey);
             setHeaders(normalizedHeaders);
 
-            console.log("🧠 Detected headers:", normalizedHeaders);
-            console.log("🧩 First row:", firstRow);
-
             const parsed = result.data.map((raw, i) => {
-              const normalized = {};
-
-              // 🔥 Normalize every cell safely
+              const norm = {};
               for (const k in raw) {
-                normalized[normalizeKey(k)] = String(raw[k] || "")
-                  .normalize("NFC")
-                  .trim();
+                norm[normalizeKey(k)] = (raw[k] || "").toString().trim();
               }
 
-              // ---- Handle Correct Answer ----
-              let correct = (
-                normalized.correct_option ||
-                normalized.correct_answer ||
-                normalized.answer ||
+              // Extract correct option using the new function
+              const correctOption = extractCorrectOption(
+                norm.correct_option ||
+                norm.correct_answer ||
+                norm.answer ||
                 ""
-              )
-                .normalize("NFC")
-                .trim()
-                .toLowerCase();
+              );
 
-              // Remove prefix "option a"
-              correct = correct
-                .replace(/^option\s+/i, "")
-                .replace(/[^a-d]/g, "");
-
-              // ---- Try text match if still not valid ----
-              if (!["a", "b", "c", "d"].includes(correct)) {
-                const normalizeText = (t) =>
-                  t
-                    ?.toLowerCase()
-                    ?.normalize("NFC")
-                    ?.replace(/[^a-z0-9\s]/g, "")
-                    ?.replace(/\s+/g, " ")
-                    ?.trim();
-
-                const optionMap = {
-                  a: normalizeText(normalized.option_a),
-                  b: normalizeText(normalized.option_b),
-                  c: normalizeText(normalized.option_c),
-                  d: normalizeText(normalized.option_d),
-                };
-
-                const correctText = normalizeText(
-                  normalized.correct_option ||
-                    normalized.correct_answer ||
-                    normalized.answer ||
-                    ""
-                );
-
-                const matched = Object.entries(optionMap).find(
-                  ([, text]) =>
-                    text &&
-                    (text === correctText ||
-                      text.includes(correctText) ||
-                      correctText.includes(text))
-                );
-
-                if (matched) correct = matched[0];
-              }
+              // Detect available options dynamically
+              const availableOptions = detectAvailableOptions(norm, normalizedHeaders);
 
               return {
                 __row: i + 2,
-                question_no:
-                  normalized.question_no ||
-                  normalized.question_number ||
-                  normalized["qno"] ||
-                  "",
-                subject: normalized.subject || normalized.subject_name || "",
-                chapter: normalized.chapter || normalized.chapter_name || "",
-                topic: normalized.topic || normalized.topic_name || "",
-                question_text:
-                  normalized.question_text || normalized.question || "",
-                question_image_url:
-                  normalized.question_image_url ||
-                  normalized.question_image ||
-                  "",
-                option_a: normalized.option_a || normalized.option1 || "",
-                option_b: normalized.option_b || normalized.option2 || "",
-                option_c: normalized.option_c || normalized.option3 || "",
-                option_d: normalized.option_d || normalized.option4 || "",
-                correct_option: correct,
-                explanation: normalized.explanation || "",
-                image_url: normalized.image_url || normalized.image || "",
+                subject: norm.subject || "",
+                chapter: norm.chapter || "",
+                topic: norm.topic || "",
+                question_text: norm.question_text || norm.question || "",
+                explanation: norm.explanation || "",
+                question_image_url: norm.question_image_url || "",
+                image_url: norm.image_url || "",
+                correct_option: correctOption,
+                original_correct_answer: norm.correct_option || norm.correct_answer || norm.answer || "", // Keep original for reference
+                ...availableOptions,
+                // Store which options are actually present
+                available_option_keys: Object.keys(availableOptions)
               };
             });
 
-            // ---- Validate ----
+            // -----------------------------
+            // VALIDATION
+            // -----------------------------
             const errs = [];
             const valid = [];
 
             parsed.forEach((r) => {
               const rowErrs = [];
+
               if (!r.subject) rowErrs.push("Missing subject");
               if (!r.chapter) rowErrs.push("Missing chapter");
               if (!r.question_text) rowErrs.push("Missing question text");
-              if (!r.option_a || !r.option_b)
-                rowErrs.push("Options A & B required");
-              if (!["a", "b", "c", "d"].includes(r.correct_option))
-                rowErrs.push("Correct answer could not be detected");
+              
+              // Check for minimum 2 options (A and B)
+              if (!r.option_a || !r.option_b) {
+                rowErrs.push("At least Option A & B are required");
+              }
+
+              // Validate correct option based on available options
+              const availableOptions = r.available_option_keys || [];
+              const maxOption = availableOptions.length > 0 
+                ? availableOptions[availableOptions.length - 1].replace('option_', '')
+                : 'h';
+              
+              const validOptions = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+                .slice(0, 'abcdefgh'.indexOf(maxOption) + 1);
+
+              if (!r.correct_option) {
+                rowErrs.push("Missing correct option");
+              } else if (!validOptions.includes(r.correct_option)) {
+                rowErrs.push(`Correct option "${r.correct_option}" is not valid. Available options: ${validOptions.join(', ').toUpperCase()}`);
+              }
+
+              // Validate that correct option has content
+              if (r.correct_option && !r[`option_${r.correct_option}`]?.trim()) {
+                rowErrs.push(`Correct option ${r.correct_option.toUpperCase()} is empty`);
+              }
 
               if (rowErrs.length)
-                errs.push({ row: r.__row, msg: rowErrs.join(", ") });
+                errs.push({ 
+                  row: r.__row, 
+                  msg: rowErrs.join(", "),
+                  originalCorrect: r.original_correct_answer,
+                  extractedCorrect: r.correct_option,
+                  availableOptions: validOptions
+                });
               else valid.push(r);
             });
 
@@ -208,39 +252,61 @@ export default function BulkUploadPage() {
 
             if (errs.length) {
               toast.error(`${errs.length} invalid rows found`);
+              // Show info about corrected options and detected options
+              const correctedCount = valid.filter(r => r.original_correct_answer && r.correct_option).length;
+              const maxOptions = Math.max(...valid.map(r => r.available_option_keys?.length || 0));
+              
+              if (correctedCount > 0) {
+                toast.success(`Automatically corrected ${correctedCount} answer formats`);
+              }
+              if (maxOptions > 2) {
+                toast.success(`Detected questions with up to ${maxOptions} options`);
+              }
             } else {
-              toast.success(`${valid.length} valid questions ready to import`);
+              const maxOptions = Math.max(...valid.map(r => r.available_option_keys?.length || 0));
+              toast.success(`${valid.length} valid rows ready with up to ${maxOptions} options`);
             }
           },
 
-          error: (err) => {
+          error: () => {
             toast.dismiss(loadingToast);
-            console.error("CSV parse error:", err);
-            toast.error("Error reading CSV file");
-          },
+            toast.error("Failed to parse CSV");
+          }
         });
       } catch (err) {
         toast.dismiss(loadingToast);
-        toast.error("Encoding issue in CSV");
-        console.error("Encoding Error:", err);
+        toast.error("Encoding error in CSV");
       }
     };
 
-    reader.readAsArrayBuffer(file); // 👈 MUST be ArrayBuffer for UTF-8 decoding
+    reader.readAsArrayBuffer(file);
   };
 
+  // -----------------------------
+  // UPLOAD TO API
+  // -----------------------------
   const upload = async () => {
-    if (rows.length === 0) {
+    if (!selectedCourse) {
+      toast.error("Select a course first");
+      return;
+    }
+
+    if (!rows.length) {
       toast.error("No valid rows to upload");
       return;
     }
 
     setUploading(true);
-    const uploadToast = toast.loading("Uploading questions to database...");
+    const loadingToast = toast.loading("Importing...");
 
     try {
-      const clean = rows.map(({ question_no, ...rest }) => rest);
-      // console.log("🚀 Uploading rows:", clean);
+      const clean = rows.map((r) => {
+        const { __row, original_correct_answer, available_option_keys, ...cleanRow } = r;
+        return {
+          ...cleanRow,
+          course_id: selectedCourse,
+        };
+      });
 
       const res = await fetch("/api/admin/questions/bulk-upload", {
         method: "POST",
@@ -248,372 +314,411 @@ export default function BulkUploadPage() {
         body: JSON.stringify({ rows: clean }),
       });
 
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
 
-      toast.dismiss(uploadToast);
-      toast.success(
-        <div>
-          <p className="font-semibold">🎉 Upload Successful!</p>
-          <p className="text-sm mt-1">
-            {data.imported} questions imported to database
-          </p>
-        </div>,
-        { duration: 5000 }
-      );
+      toast.dismiss(loadingToast);
+      toast.success(`Imported ${json.imported} questions`);
+
       setRows([]);
       setErrors([]);
     } catch (err) {
-      toast.dismiss(uploadToast);
-      toast.error(`Upload failed: ${err.message}`);
+      toast.dismiss(loadingToast);
+      toast.error(err.message);
     } finally {
       setUploading(false);
     }
   };
 
-  const downloadTemplate = () => {
-    const template = [
-      {
-        question_no: "1",
-        subject: "Mathematics",
-        chapter: "Algebra",
-        topic: "Linear Equations",
-        question_text: "What is the solution to 2x + 3 = 11?",
-        question_image_url: "https://example.com/image.jpg",
-        option_a: "x = 4",
-        option_b: "x = 5",
-        option_c: "x = 6",
-        option_d: "x = 7",
-        correct_option: "a",
-        explanation:
-          "Subtract 3 from both sides: 2x = 8, then divide by 2: x = 4",
-        image_url: "",
-      },
-    ];
-
-    const csv = Papa.unparse(template);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", "question_upload_template.csv");
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success("Template downloaded successfully!");
+  // Render options for a row in preview
+  const renderOptions = (row) => {
+    const optionKeys = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    return optionKeys.map(key => {
+      const optionValue = row[`option_${key}`];
+      if (!optionValue) return null;
+      
+      const isCorrect = row.correct_option === key;
+      
+      return (
+        <div key={key} className={`flex items-center gap-2 p-1 rounded ${
+          isCorrect ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' : ''
+        }`}>
+          <span className={`font-medium w-4 text-xs ${
+            isCorrect ? 'text-green-700 dark:text-green-300 font-bold' : 'text-gray-600 dark:text-gray-400'
+          }`}>
+            {key.toUpperCase()}
+          </span>
+          <span className={`text-xs truncate flex-1 ${
+            isCorrect ? 'text-green-800 dark:text-green-200 font-medium' : 'text-gray-700 dark:text-gray-300'
+          }`}>
+            {optionValue}
+          </span>
+          {isCorrect && (
+            <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400 flex-shrink-0" />
+          )}
+        </div>
+      );
+    }).filter(Boolean);
   };
 
+  // -----------------------------
+  // UI
+  // -----------------------------
   return (
-    <div className="min-h-screen  dark:from-gray-900 dark:to-gray-800 p-4 lg:p-6">
-      <Toaster
-        position="top-right"
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 transition-colors">
+      <Toaster 
+        position="top-right" 
         toastOptions={{
           duration: 4000,
           style: {
-            background: "var(--background)",
-            color: "var(--foreground)",
-            border: "1px solid var(--border)",
+            background: '#1f2937',
+            color: '#fff',
+          },
+          success: {
+            style: {
+              background: '#065f46',
+            },
+          },
+          error: {
+            style: {
+              background: '#7f1d1d',
+            },
           },
         }}
       />
 
-      <div className=" mx-auto">
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
-              <Upload className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                Bulk Upload Questions
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">
-                Import multiple questions via CSV file
-              </p>
-            </div>
+      {/* Header */}
+      <div className="mx-auto">
+        <div className="flex items-center gap-3 mb-2">
+          <Database className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 dark:text-blue-500" />
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+              Bulk Upload Questions
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base mt-1">
+              Upload CSV files to import questions in bulk - Supports up to 8 options (A-H)
+            </p>
           </div>
-
-          <button
-            onClick={downloadTemplate}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium flex items-center gap-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
-          >
-            <Download className="w-4 h-4" />
-            Download Template
-          </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Upload Card */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-500" />
-                Upload CSV File
-              </h2>
-
-              <div
-                className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-300 ${
-                  dragActive
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                    : "border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500"
-                }`}
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-              >
-                <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                  Drop your CSV file here
-                </p>
-                <p className="text-gray-500 dark:text-gray-400 mb-4">
-                  or click to browse files
-                </p>
-                <input
-                  type="file"
-                  accept=".csv"
-                  className="hidden"
-                  id="csv-upload"
-                  onChange={(e) => handleFile(e.target.files?.[0])}
-                />
-                <label
-                  htmlFor="csv-upload"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors cursor-pointer"
-                >
-                  <Upload className="w-4 h-4" />
-                  Choose File
-                </label>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
-                  Supports CSV files with question data
-                </p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+          {/* Left Column - Course Selection & Upload */}
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+            {/* Select Course Card */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6 transition-colors">
+              <div className="flex items-center gap-3 mb-4">
+                <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-500" />
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
+                  Select Course
+                </h2>
               </div>
 
-              {headers.length > 0 && (
-                <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    📋 Detected Columns:
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {headers.map((header, index) => (
-                      <span
-                        key={index}
-                        className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg text-xs font-medium"
-                      >
-                        {header}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+              <select
+                value={selectedCourse}
+                onChange={(e) => setSelectedCourse(e.target.value)}
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 dark:border-gray-600 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+              >
+                <option value="" className="dark:bg-gray-700">-- Select Course --</option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id} className="dark:bg-gray-700">
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+
+              {!selectedCourse && (
+                <p className="text-sm text-red-600 dark:text-red-400 mt-2 flex items-center gap-1">
+                  <AlertTriangle className="w-4 h-4" />
+                  Please select a course to continue
+                </p>
               )}
             </div>
 
-            {/* Preview Section */}
-            {rows.length > 0 && (
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center gap-3">
-                    <Eye className="w-5 h-5 text-green-500" />
-                    <div>
-                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                        Preview Ready
-                      </h2>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {rows.length} valid questions found
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={upload}
-                    disabled={uploading}
-                    className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-green-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {uploading ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Database className="w-5 h-5" />
-                    )}
-                    {uploading
-                      ? "Uploading..."
-                      : `Import ${rows.length} Questions`}
-                  </button>
-                </div>
-
-                <div className="overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 dark:bg-gray-700/50">
-                        <tr>
-                          <th className="p-4 text-left font-semibold text-gray-900 dark:text-white">
-                            #
-                          </th>
-                          <th className="p-4 text-left font-semibold text-gray-900 dark:text-white">
-                            Subject
-                          </th>
-                          <th className="p-4 text-left font-semibold text-gray-900 dark:text-white">
-                            Chapter
-                          </th>
-                          <th className="p-4 text-left font-semibold text-gray-900 dark:text-white">
-                            Question
-                          </th>
-                          <th className="p-4 text-left font-semibold text-gray-900 dark:text-white">
-                            Correct
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {rows
-                          .slice(0, isExpanded ? rows.length : 5)
-                          .map((r, i) => (
-                            <tr
-                              key={i}
-                              className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
-                            >
-                              <td className="p-4 font-medium text-gray-900 dark:text-white">
-                                {r.question_no || i + 1}
-                              </td>
-                              <td className="p-4 text-gray-700 dark:text-gray-300">
-                                {r.subject}
-                              </td>
-                              <td className="p-4 text-gray-700 dark:text-gray-300">
-                                {r.chapter}
-                              </td>
-                              <td className="p-4 max-w-[300px]">
-                                <p
-                                  className="text-gray-700 dark:text-gray-300 truncate"
-                                  title={r.question_text}
-                                >
-                                  {r.question_text}
-                                </p>
-                              </td>
-                              <td className="p-4">
-                                <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg text-xs font-bold uppercase">
-                                  {r.correct_option}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {rows.length > 5 && (
-                    <div className="p-4 border-t border-gray-200 dark:border-gray-700 text-center">
-                      <button
-                        onClick={() => setIsExpanded(!isExpanded)}
-                        className="flex items-center gap-2 mx-auto text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
-                      >
-                        {isExpanded ? (
-                          <>
-                            <ChevronUp className="w-4 h-4" />
-                            Show Less
-                          </>
-                        ) : (
-                          <>
-                            <ChevronDown className="w-4 h-4" />
-                            Show All {rows.length} Questions
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  )}
-                </div>
+            {/* Upload Card */}
+            <div
+              className={`bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6 transition-all ${
+                !selectedCourse ? "opacity-50 pointer-events-none" : ""
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <FileText className="w-5 h-5 text-blue-600 dark:text-blue-500" />
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
+                  Upload CSV File
+                </h2>
               </div>
-            )}
-          </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Stats Card */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Upload Status
-              </h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Valid Questions
-                  </span>
-                  <span className="text-2xl font-bold text-green-600 dark:text-green-400">
-                    {rows.length}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Errors Found
-                  </span>
-                  <span className="text-2xl font-bold text-red-600 dark:text-red-400">
-                    {errors.length}
-                  </span>
+              <div
+                className={`border-2 border-dashed rounded-lg sm:rounded-xl p-4 sm:p-8 text-center transition-all duration-200 ${
+                  dragActive
+                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 border-blue-500"
+                    : "border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                } ${!selectedCourse ? "cursor-not-allowed" : "cursor-pointer"}`}
+                onDragEnter={selectedCourse ? handleDrag : undefined}
+                onDragLeave={selectedCourse ? handleDrag : undefined}
+                onDragOver={selectedCourse ? handleDrag : undefined}
+                onDrop={selectedCourse ? handleDrop : undefined}
+              >
+                <div className="max-w-md mx-auto">
+                  <Upload className={`w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-3 sm:mb-4 ${
+                    dragActive ? "text-blue-500" : "text-gray-400 dark:text-gray-500"
+                  }`} />
+                  
+                  <p className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    Drop your CSV file here
+                  </p>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm sm:text-base mb-4 sm:mb-6">
+                    or click to browse files from your computer
+                  </p>
+
+                  <input
+                    id="csv-upload"
+                    type="file"
+                    accept=".csv"
+                    className="hidden"
+                    onChange={(e) => handleFile(e.target.files?.[0])}
+                    disabled={!selectedCourse}
+                  />
+
+                  <label
+                    htmlFor="csv-upload"
+                    className={`inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-medium transition-all text-sm sm:text-base ${
+                      selectedCourse 
+                        ? "bg-blue-600 hover:bg-blue-700 text-white shadow-sm cursor-pointer" 
+                        : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                    }`}
+                  >
+                    <Upload className="w-4 h-4" />
+                    Choose File
+                  </label>
+
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-3 sm:mt-4">
+                    Supported format: .csv only
+                  </p>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Errors Card */}
-            {errors.length > 0 && (
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-red-200 dark:border-red-800 p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <AlertTriangle className="w-5 h-5 text-red-500" />
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Validation Errors
-                  </h3>
-                </div>
-                <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {errors.map((error, index) => (
-                    <div
-                      key={index}
-                      className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg"
-                    >
-                      <p className="text-sm font-medium text-red-800 dark:text-red-300">
-                        Row {error.row}
-                      </p>
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                        {error.msg}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Instructions Card */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-blue-500" />
-                CSV Format Guide
+          {/* Right Column - Instructions */}
+          <div className="lg:col-span-1">
+            <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6 sticky top-6 transition-colors">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <CheckSquare className="w-5 h-5 text-green-600 dark:text-green-500" />
+                CSV Requirements
               </h3>
-              <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
-                <p>
-                  • Include headers:{" "}
-                  <strong>subject, chapter, question_text</strong>
-                </p>
-                <p>
-                  • Required:{" "}
-                  <strong>option_a, option_b, correct_option</strong>
-                </p>
-                <p>
-                  • Correct option: <strong>a, b, c, or d</strong>
-                </p>
-                <p>• Optional: topic, explanation, image_url</p>
-                <p>• Download template for reference</p>
+              
+              <div className="space-y-3 sm:space-y-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">Required Columns</p>
+                    <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">subject, chapter, question_text, option_a, option_b, correct_option</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">Optional Columns</p>
+                    <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">option_c, option_d, option_e, option_f, option_g, option_h</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 dark:text-green-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">Correct Answer Format</p>
+                    <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Supports: "C", "C. Text", "Option C", "C) Answer"</p>
+                  </div>
+                </div>
+
+                <div className="pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-600">
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                    Supports 2-8 options (A-H). System auto-detects available options.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Empty State */}
-        {rows.length === 0 && errors.length === 0 && (
-          <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 mt-6">
-            <Upload className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-              Ready to Import Questions
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
-              Upload a CSV file to preview and import questions in bulk.
-              Download the template to ensure proper formatting.
-            </p>
+        {/* Preview Section */}
+        {rows.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 mt-4 sm:mt-6 overflow-hidden transition-colors">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                  <Eye className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-500" />
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
+                    Preview
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base">
+                    <span className="font-medium text-green-600 dark:text-green-500">{rows.length}</span> valid rows ready • 
+                    Up to {Math.max(...rows.map(r => r.available_option_keys?.length || 0))} options
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={upload}
+                disabled={uploading}
+                className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg sm:rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm w-full sm:w-auto justify-center"
+              >
+                {uploading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Import {rows.length} Questions
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[800px]">
+                <thead className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
+                  <tr>
+                    <th className="p-3 sm:p-4 text-left text-xs sm:text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                      #
+                    </th>
+                    <th className="p-3 sm:p-4 text-left text-xs sm:text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                      Subject
+                    </th>
+                    <th className="p-3 sm:p-4 text-left text-xs sm:text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                      Chapter
+                    </th>
+                    <th className="p-3 sm:p-4 text-left text-xs sm:text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                      Question
+                    </th>
+                    <th className="p-3 sm:p-4 text-left text-xs sm:text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                      Options
+                    </th>
+                    <th className="p-3 sm:p-4 text-left text-xs sm:text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                      Correct
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {rows
+                    .slice(0, isExpanded ? rows.length : 5)
+                    .map((row, i) => (
+                      <tr 
+                        key={i} 
+                        className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                      >
+                        <td className="p-3 sm:p-4 text-xs sm:text-sm text-gray-600 dark:text-gray-400 font-medium">
+                          {i + 1}
+                        </td>
+                        <td className="p-3 sm:p-4 text-xs sm:text-sm text-gray-900 dark:text-white">
+                          {row.subject}
+                        </td>
+                        <td className="p-3 sm:p-4 text-xs sm:text-sm text-gray-900 dark:text-white">
+                          {row.chapter}
+                        </td>
+                        <td 
+                          className="p-3 sm:p-4 text-xs sm:text-sm text-gray-900 dark:text-white max-w-[200px] truncate" 
+                          title={row.question_text}
+                        >
+                          {row.question_text}
+                        </td>
+                        <td className="p-3 sm:p-4">
+                          <div className="space-y-1 max-w-[200px]">
+                            {renderOptions(row)}
+                          </div>
+                        </td>
+                        <td className="p-3 sm:p-4">
+                          <div className="flex flex-col gap-1">
+                            <span className="inline-flex items-center justify-center w-6 h-6 bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 rounded-full text-xs font-bold uppercase">
+                              {row.correct_option}
+                            </span>
+                            {row.original_correct_answer && row.original_correct_answer !== row.correct_option && (
+                              <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[80px]" title={row.original_correct_answer}>
+                                from: {row.original_correct_answer}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+
+            {rows.length > 5 && (
+              <div className="p-3 sm:p-4 text-center border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30">
+                <button
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors text-sm sm:text-base"
+                >
+                  {isExpanded ? (
+                    <>
+                      <ChevronUp className="w-4 h-4" />
+                      Show Less
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-4 h-4" />
+                      Show All {rows.length} Rows
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Errors Section */}
+        {errors.length > 0 && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl sm:rounded-2xl p-4 sm:p-6 mt-4 sm:mt-6 transition-colors">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 dark:bg-red-900/40 rounded-lg">
+                <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-red-900 dark:text-red-100">
+                  Validation Errors
+                </h3>
+                <p className="text-red-700 dark:text-red-300 text-sm sm:text-base">
+                  {errors.length} row{errors.length > 1 ? 's' : ''} need{errors.length === 1 ? 's' : ''} to be fixed
+                </p>
+              </div>
+            </div>
+            
+            <div className="space-y-2 max-h-64 sm:max-h-96 overflow-y-auto">
+              {errors.map((err, i) => (
+                <div 
+                  key={i} 
+                  className="flex items-start gap-3 p-3 bg-white dark:bg-red-900/10 rounded-lg border border-red-100 dark:border-red-800"
+                >
+                  <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-medium text-red-900 dark:text-red-100 text-sm sm:text-base">
+                      Row {err.row}
+                    </p>
+                    <p className="text-xs sm:text-sm text-red-700 dark:text-red-300 mb-1">
+                      {err.msg}
+                    </p>
+                    {err.originalCorrect && (
+                      <p className="text-xs text-red-600 dark:text-red-400">
+                        Original: "{err.originalCorrect}" → Extracted: "{err.extractedCorrect || 'none'}"
+                      </p>
+                    )}
+                    {err.availableOptions && (
+                      <p className="text-xs text-red-600 dark:text-red-400">
+                        Available options: {err.availableOptions.join(', ').toUpperCase()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
