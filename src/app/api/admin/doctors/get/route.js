@@ -36,25 +36,36 @@ export async function GET(req) {
 
     if (dErr) throw dErr;
 
-    // Get doctor_subjects joined with subjects for the fetched doctors
+    // Get doctor_subjects joined with subjects and courses for the fetched doctors
     const doctorIds = doctors?.map(d => d.id) || [];
     let assignments = [];
 
     if (doctorIds.length > 0) {
       const { data: assignmentsData, error: aErr } = await supabase
         .from("doctor_subjects")
-        .select("doctor_id, subject:subjects(id, name)")
+        .select(`
+          doctor_id, 
+          subject:subjects(
+            id, 
+            name,
+            courses (id, name)
+          )
+        `)
         .in("doctor_id", doctorIds);
 
       if (aErr) throw aErr;
       assignments = assignmentsData || [];
     }
 
-    // Map subjects by doctor_id
+    // Map subjects by doctor_id and include course information
     const map = {};
     assignments.forEach((r) => {
       if (!map[r.doctor_id]) map[r.doctor_id] = [];
-      map[r.doctor_id].push(r.subject);
+      map[r.doctor_id].push({
+        ...r.subject,
+        course_name: r.subject.courses?.name || 'No Course',
+        course: r.subject.courses
+      });
     });
 
     const payload = (doctors || []).map((doc) => ({
