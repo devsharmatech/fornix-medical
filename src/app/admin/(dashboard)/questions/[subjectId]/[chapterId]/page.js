@@ -40,6 +40,7 @@ export default function ChapterDetailsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [showExplanation, setShowExplanation] = useState({});
   const [saving, setSaving] = useState(false);
+  const [questionSerialNumbers, setQuestionSerialNumbers] = useState({});
 
   const [modal, setModal] = useState({
     open: false,
@@ -80,6 +81,30 @@ export default function ChapterDetailsPage() {
   useEffect(() => {
     fetchData();
   }, [chapterId]);
+
+  // Calculate serial numbers whenever filtered data changes
+  useEffect(() => {
+    const calculateSerialNumbers = () => {
+      const serials = {};
+      let serial = 1;
+
+      // Assign serial numbers to direct questions
+      filteredQuestions.forEach(question => {
+        serials[question.id] = serial++;
+      });
+
+      // Assign serial numbers to topic questions
+      filteredTopics.forEach(topic => {
+        topic.questions.forEach(question => {
+          serials[question.id] = serial++;
+        });
+      });
+
+      setQuestionSerialNumbers(serials);
+    };
+
+    calculateSerialNumbers();
+  }, [filteredQuestions, filteredTopics]);
 
   // Apply search and filter
   useEffect(() => {
@@ -483,6 +508,7 @@ export default function ChapterDetailsPage() {
                     <QuestionCard
                       key={q.id}
                       question={q}
+                      serialNumber={questionSerialNumbers[q.id]}
                       showExplanation={showExplanation[q.id]}
                       onToggleExplanation={() => toggleExplanation(q.id)}
                       onEdit={() =>
@@ -577,6 +603,7 @@ export default function ChapterDetailsPage() {
                         onToggleExplanation={toggleExplanation}
                         openModal={openModal}
                         deleteQuestion={deleteQuestion}
+                        questionSerialNumbers={questionSerialNumbers}
                       />
                     ))}
                 </div>
@@ -659,13 +686,14 @@ export default function ChapterDetailsPage() {
   );
 }
 
-// Question Card Component (same as before)
+// Question Card Component with Serial Number
 function QuestionCard({
   question,
   showExplanation,
   onToggleExplanation,
   onEdit,
   onDelete,
+  serialNumber,
 }) {
   const getStatusColor = (status) => {
     switch (status) {
@@ -699,8 +727,11 @@ function QuestionCard({
       {/* Question Header */}
       <div className="flex justify-between flex-wrap items-start mb-4">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-            <FileText className="text-blue-600 dark:text-blue-400" size={20} />
+          {/* Serial Number Badge */}
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+              <FileText className="text-blue-600 dark:text-blue-400" size={20} />
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <span
@@ -746,7 +777,7 @@ function QuestionCard({
       {/* Question Text */}
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 leading-relaxed">
-          {question.question_text}
+          Q-{serialNumber}: {question.question_text}
         </h3>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -769,7 +800,7 @@ function QuestionCard({
         </div>
         <div className="order-2 md:order-1">
           {/* Options */}
-          <div className="grid  gap-2 mb-4">
+          <div className="grid gap-2 mb-4">
             {question.question_options?.map((option) => (
               <div
                 key={option.id}
@@ -844,7 +875,7 @@ function QuestionCard({
   );
 }
 
-// Topic Accordion Component (updated to use filtered questions)
+// Topic Accordion Component
 function TopicAccordion({
   topic,
   subjectId,
@@ -858,6 +889,7 @@ function TopicAccordion({
   onToggleExplanation,
   openModal,
   deleteQuestion,
+  questionSerialNumbers,
 }) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-all duration-300">
@@ -939,6 +971,7 @@ function TopicAccordion({
                 <QuestionCard
                   key={question.id}
                   question={question}
+                  serialNumber={questionSerialNumbers[question.id]}
                   showExplanation={showExplanation[question.id]}
                   onToggleExplanation={() => onToggleExplanation(question.id)}
                   onEdit={() =>

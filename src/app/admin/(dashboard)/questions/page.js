@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import Link from "next/link";
 import Modal from "@/components/Modal";
 import { SubjectForm } from "@/components/Forms";
+import { useSearchParams } from "next/navigation";
 
 export default function SubjectsPage() {
   const [subjects, setSubjects] = useState([]);
@@ -17,6 +18,10 @@ export default function SubjectsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [modal, setModal] = useState({ open: false, mode: "create", item: null, saving: false });
+
+  // Get query parameters
+  const searchParams = useSearchParams();
+  const courseIdFromQuery = searchParams.get('course_id');
 
   // Build API URL with query parameters
   const buildApiUrl = () => {
@@ -51,6 +56,15 @@ export default function SubjectsPage() {
       setTotalCount(subjectsJson.pagination?.total || 0);
       setTotalPages(subjectsJson.pagination?.totalPages || 0);
       setCourses(coursesJson.data || []);
+      
+      // Auto-select course if provided in query params and courses are loaded
+      if (courseIdFromQuery && coursesJson.data.length > 0 && selectedCourse === "all") {
+        const courseExists = coursesJson.data.find(c => c.id === courseIdFromQuery);
+        if (courseExists) {
+          setSelectedCourse(courseIdFromQuery);
+          toast.success(`Showing subjects for "${courseExists.name}"`);
+        }
+      }
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -102,6 +116,13 @@ export default function SubjectsPage() {
     }
   }
 
+  // Get current course name
+  const getCurrentCourseName = () => {
+    if (selectedCourse === "all") return "";
+    const course = courses.find(c => c.id === selectedCourse);
+    return course ? course.name : "";
+  };
+
   // Pagination controls
   const goToPage = (page) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
@@ -147,6 +168,11 @@ export default function SubjectsPage() {
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
                   Manage your subjects and course materials
+                  {selectedCourse !== "all" && (
+                    <span className="block text-blue-600 dark:text-blue-400 font-medium mt-1">
+                      Course: {getCurrentCourseName()}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -218,7 +244,7 @@ export default function SubjectsPage() {
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
               <p className="text-gray-600 dark:text-gray-400">
                 Showing {subjects.length} of {totalCount} subject{totalCount !== 1 ? 's' : ''}
-                {selectedCourse !== "all" && ` in ${courses.find(c => c.id === selectedCourse)?.name || "selected course"}`}
+                {selectedCourse !== "all" && ` in ${getCurrentCourseName() || "selected course"}`}
               </p>
               
               {(searchTerm || selectedCourse !== "all") && (
@@ -255,6 +281,15 @@ export default function SubjectsPage() {
                   >
                     <Plus size={20} /> 
                     <span>Create Your First Subject</span>
+                  </button>
+                )}
+                {selectedCourse !== "all" && (
+                  <button
+                    onClick={openCreate}
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 mx-auto"
+                  >
+                    <Plus size={20} /> 
+                    <span>Create Subject for {getCurrentCourseName()}</span>
                   </button>
                 )}
               </div>
@@ -330,6 +365,7 @@ export default function SubjectsPage() {
                   <div className="flex flex-col sm:flex-row justify-between items-center gap-4 py-4 border-t border-gray-200 dark:border-gray-700">
                     <div className="text-sm text-gray-600 dark:text-gray-400">
                       Page {currentPage} of {totalPages} • {totalCount} total subjects
+                      {selectedCourse !== "all" && ` in ${getCurrentCourseName()}`}
                     </div>
                     
                     <div className="flex items-center gap-2">

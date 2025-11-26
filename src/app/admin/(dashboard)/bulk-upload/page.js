@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Papa from "papaparse";
 import toast, { Toaster } from "react-hot-toast";
+import { useSearchParams } from "next/navigation";
 
 import {
   Upload,
@@ -33,6 +34,10 @@ export default function BulkUploadPage() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [dragActive, setDragActive] = useState(false);
 
+  // Get query parameters
+  const searchParams = useSearchParams();
+  const courseIdFromQuery = searchParams.get('course_id');
+
   // -----------------------------
   // LOAD COURSES
   // -----------------------------
@@ -41,13 +46,26 @@ export default function BulkUploadPage() {
       try {
         const res = await fetch("/api/admin/courses");
         const json = await res.json();
-        if (json.success) setCourses(json.data);
+        if (json.success) {
+          setCourses(json.data);
+          
+          // Auto-select course if provided in query params
+          if (courseIdFromQuery && json.data.length > 0) {
+            const courseExists = json.data.find(c => c.id === courseIdFromQuery);
+            if (courseExists) {
+              setSelectedCourse(courseIdFromQuery);
+              toast.success(`Course "${courseExists.name}" auto-selected`);
+            } else {
+              toast.error("Course not found");
+            }
+          }
+        }
       } catch (err) {
         toast.error("Failed to load courses");
       }
     }
     loadCourses();
-  }, []);
+  }, [courseIdFromQuery]);
 
   // Normalize CSV keys
   const normalizeKey = (key) =>
@@ -330,6 +348,12 @@ export default function BulkUploadPage() {
     }
   };
 
+  // Get current course name
+  const getCurrentCourseName = () => {
+    const course = courses.find(c => c.id === selectedCourse);
+    return course ? course.name : "";
+  };
+
   // Render options for a row in preview
   const renderOptions = (row) => {
     const optionKeys = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
@@ -397,6 +421,11 @@ export default function BulkUploadPage() {
             </h1>
             <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base mt-1">
               Upload CSV files to import questions in bulk - Supports up to 8 options (A-H)
+              {selectedCourse && (
+                <span className="block text-blue-600 dark:text-blue-400 font-medium mt-1">
+                  Current Course: {getCurrentCourseName()}
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -430,6 +459,13 @@ export default function BulkUploadPage() {
                 <p className="text-sm text-red-600 dark:text-red-400 mt-2 flex items-center gap-1">
                   <AlertTriangle className="w-4 h-4" />
                   Please select a course to continue
+                </p>
+              )}
+
+              {selectedCourse && (
+                <p className="text-sm text-green-600 dark:text-green-400 mt-2 flex items-center gap-1">
+                  <CheckCircle className="w-4 h-4" />
+                  Ready to upload questions for {getCurrentCourseName()}
                 </p>
               )}
             </div>
@@ -557,6 +593,11 @@ export default function BulkUploadPage() {
                   <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base">
                     <span className="font-medium text-green-600 dark:text-green-500">{rows.length}</span> valid rows ready • 
                     Up to {Math.max(...rows.map(r => r.available_option_keys?.length || 0))} options
+                    {selectedCourse && (
+                      <span className="block text-blue-600 dark:text-blue-400 text-xs mt-1">
+                        For course: {getCurrentCourseName()}
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>

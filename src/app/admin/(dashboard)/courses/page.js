@@ -9,12 +9,16 @@ import {
   Search,
   Grid,
   List,
+  BookOpen,
+  Upload,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Modal from "@/components/Modal";
 import { CourseForm } from "@/components/Forms/CourseForm";
+import { useRouter } from "next/navigation";
 
 export default function CoursesPage() {
+  const router = useRouter();
   const [courses, setCourses] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState("");
@@ -112,6 +116,16 @@ export default function CoursesPage() {
       toast.error(err.message);
     }
   }
+
+  // Navigate to subjects for a course
+  const navigateToSubjects = (courseId) => {
+    router.push(`/admin/questions?course_id=${courseId}`);
+  };
+
+  // Navigate to bulk upload for a course
+  const navigateToBulkUpload = (courseId) => {
+    router.push(`/admin/bulk-upload?course_id=${courseId}`);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 sm:p-6 lg:p-8">
@@ -270,7 +284,24 @@ export default function CoursesPage() {
                       </p>
                     </div>
 
+                    {/* Action Buttons */}
                     <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-600">
+                      <div className="flex gap-3 mb-3">
+                        <button
+                          onClick={() => navigateToSubjects(course.id)}
+                          className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 group"
+                        >
+                          <BookOpen size={16} className="group-hover:scale-110 transition-transform" />
+                          Subjects
+                        </button>
+                        <button
+                          onClick={() => navigateToBulkUpload(course.id)}
+                          className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 group"
+                        >
+                          <Upload size={16} className="group-hover:scale-110 transition-transform" />
+                          Bulk Upload
+                        </button>
+                      </div>
                       <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
                         <span>Course ID: {course.id}</span>
                         <span className="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-600 rounded-full">
@@ -311,6 +342,24 @@ export default function CoursesPage() {
                     </div>
 
                     <div className="flex items-center gap-4">
+                      <div className="flex gap-2 mr-4">
+                        <button
+                          onClick={() => navigateToSubjects(course.id)}
+                          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+                          title="Manage Subjects"
+                        >
+                          <BookOpen size={16} />
+                          <span className="hidden sm:inline">Subjects</span>
+                        </button>
+                        <button
+                          onClick={() => navigateToBulkUpload(course.id)}
+                          className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+                          title="Bulk Upload"
+                        >
+                          <Upload size={16} />
+                          <span className="hidden sm:inline">Bulk Upload</span>
+                        </button>
+                      </div>
                       <span className="text-sm text-gray-500 dark:text-gray-400 hidden sm:block">
                         ID: {course.id}
                       </span>
