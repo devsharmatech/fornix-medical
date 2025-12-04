@@ -92,7 +92,7 @@ export async function PUT(req) {
     // -----------------------------
     // ROLE VALIDATION
     // -----------------------------
-    const validRoles = ["student", "teacher", "admin"];
+    const validRoles = ["user", "doctor", "admin"];
 
     if (role && !validRoles.includes(role)) {
       return Response.json(
