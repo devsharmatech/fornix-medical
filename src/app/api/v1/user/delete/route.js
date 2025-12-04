@@ -2,18 +2,9 @@ import { supabase } from "@/lib/supabaseAdmin";
 
 export async function DELETE(req) {
   try {
-    let id;
-
-    // Ensure request contains JSON (Next.js DELETE sometimes needs manual parsing)
-    try {
-      const body = await req.json();
-      id = body.id;
-    } catch {
-      return Response.json(
-        { success: false, error: "Invalid JSON data" },
-        { status: 400 }
-      );
-    }
+    
+    const { id } = await req.json();
+    
 
     if (!id) {
       return Response.json(
