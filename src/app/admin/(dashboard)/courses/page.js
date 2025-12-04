@@ -17,7 +17,7 @@ import Modal from "@/components/Modal";
 import { CourseForm } from "@/components/Forms/CourseForm";
 import { useRouter } from "next/navigation";
 
-export default function CoursesPage() {
+export default function page() {
   const router = useRouter();
   const [courses, setCourses] = useState([]);
   const [filtered, setFiltered] = useState([]);

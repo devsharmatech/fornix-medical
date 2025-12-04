@@ -17,6 +17,7 @@ import {
   Sun,
   BarChart3,
   FileText,
+  Image,
 } from "lucide-react";
 import { jwtDecode } from "jwt-decode";
 
@@ -56,6 +57,8 @@ export default function Sidebar({
         { name: "Courses", icon: BarChart3, href: "/admin/courses" },
         { name: "Subjects", icon: BarChart3, href: "/admin/questions" },
         { name: "Bulk Upload", icon: Upload, href: "/admin/bulk-upload" },
+        { name: "Banners", icon: Image, href: "/admin/banners" },
+        { name: "Testimonials", icon: Image, href: "/admin/testimonials" },
       ]
     : [
         { name: "Dashboard", icon: LayoutDashboard, href: "/doctor/dashboard" },

@@ -1344,7 +1344,7 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
 };
 
 // Main ManageDoctors Component (same as before)
-export default function ManageDoctors() {
+export default function page() {
   const [doctors, setDoctors] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [courses, setCourses] = useState([]);

@@ -571,7 +571,7 @@ function QuestionItem({
    Main Page component
    ============================ */
 
-export default function SubjectsManagerPage() {
+export default function page() {
   const [tree, setTree] = useState([]); // expected shape: subjects -> chapters -> topics -> questions
   const [expanded, setExpanded] = useState({}); // keys: subjectId | chapterId | topicId | `q-${questionId}`
   const [modal, setModal] = useState({

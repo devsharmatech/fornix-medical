@@ -93,7 +93,7 @@ const ActivityItem = ({ icon: Icon, title, description, time, color }) => (
   </div>
 );
 
-export default function AdminDashboard() {
+export default function page() {
   const [stats, setStats] = useState({ 
     users: 1258, 
     doctors: 42, 

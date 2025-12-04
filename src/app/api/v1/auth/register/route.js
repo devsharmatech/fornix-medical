@@ -11,8 +11,6 @@ export async function POST(req) {
     const password = formData.get("password");
     const profile_picture = formData.get("profile_picture");
 
-    // console.log("Received file:", profile_picture);
-
     if (!full_name || !email || !password) {
       return Response.json(
         { success: false, error: "Missing required fields" },
