@@ -17,7 +17,7 @@ export async function POST(req) {
       .select('id, question_text, question_type, explanation, question_image_url')
       .eq('chapter_id', chapter_id)
       .eq('question_type', question_type)
-      .eq('status', 'approved')
+    // .eq('status', 'approved')
       .limit(limit);
 
     if (error) throw error;
