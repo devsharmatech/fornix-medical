@@ -11,10 +11,7 @@ export async function POST(req) {
         { status: 400 }
       );
     }
-
-    // -----------------------------
-    // FETCH USER DETAILS
-    // -----------------------------
+    
     const { data, error } = await supabase
       .from("users")
       .select(`
