@@ -48,27 +48,43 @@ export async function generateExplanationTextIfNeeded(questionId) {
 		{
 			role: "system",
 			content:
-				"You are a medical exam tutor. Explain the reasoning clearly and concisely for the given MCQ. Keep it 60-120 seconds long when read aloud. Use simple language.",
+				"You are a medical exam tutor. Produce a crisp, professional, step-by-step explanation that teaches reasoning, not fluff. Requirements:\n- Use numbered steps (1., 2., 3., ...)\n- Be direct and instructional (no greetings, no 'as an AI', no filler)\n- Do NOT restate the question verbatim; focus on reasoning\n- Focus on: key clues, governing concept, and precise application\n- Include a brief worked example or analogy (1–2 lines) to illustrate the concept\n- Include an option check: for each provided option key, briefly say why it is correct/incorrect\n- End with a concise takeaway\n- Length target: 120–180 words",
 		},
 		{
 			role: "user",
 			content:
-				`Question:\n${q.question_text}\n\nOptions:\n${optionsText || "N/A"}\n\nCorrect Answer: ${correctKey}\n\nWrite a concise explanation for why the correct answer is correct and, if useful, why others are not.`,
+				`Question:\n${q.question_text}\n\nOptions:\n${optionsText || "N/A"}\n\nCorrect Answer: ${correctKey}\n\nWrite the explanation in this exact outline:\n1) Key clues — list the essential data points that drive the decision.\n2) Core concept — name the rule/pathophysiology that resolves the case.\n3) Apply — connect the clues to the concept to reach the answer.\n4) Worked example — 1–2 lines showing a quick numeric/clinical example or analogy.\n5) Option check — for each existing option key (A–H), one short line: \"<KEY> — <why correct/incorrect>\". Only include options that exist.\n6) Takeaway — one line of what to remember.\nNo preamble. No apologies. No extra sections.`,
 		},
 	];
 
 	let explanation = null;
-	// Use OpenAI (npm SDK) for explanation generation
+	// Use OpenAI (npm SDK) for explanation generation with simple retries
 	ensureEnv();
-	try {
-		const data = await openai.chat.completions.create({
-			model: "gpt-4o-mini",
-			messages: prompt,
-			temperature: 0.4,
-		});
-		explanation = data?.choices?.[0]?.message?.content?.trim?.() || null;
-	} catch {
-		// ignore
+	for (let attempt = 1; attempt <= 3; attempt++) {
+		try {
+			const data = await openai.chat.completions.create({
+				model: "gpt-4o-mini",
+				messages: prompt,
+				temperature: 0.4,
+			});
+			explanation = data?.choices?.[0]?.message?.content?.trim?.() || null;
+			break;
+		} catch (e) {
+			const msg = e?.message || "";
+			// Map network errors
+			if (/fetch failed/i.test(msg) || /ENOTFOUND|ECONNRESET|ETIMEDOUT/i.test(msg)) {
+				if (attempt === 3) {
+					const err = new Error("NETWORK_ERROR: Unable to reach OpenAI API");
+					err.code = "NETWORK_ERROR";
+					throw err;
+				}
+			} else {
+				// Non-network: break without retry
+				break;
+			}
+			// Backoff
+			await new Promise((r) => setTimeout(r, 300 * attempt));
+		}
 	}
 
 	if (!explanation) {
@@ -98,29 +114,41 @@ export async function synthesizeSpeechToBuffer(text, gender) {
 	const voice =
 		gender === "female"
 			? femaleOpenAiEnv || "coral"
-			: maleOpenAiEnv || "alloy";
+			: maleOpenAiEnv || "onyx";
 
-	try {
-		const speech = await openai.audio.speech.create({
-			model: "gpt-4o-mini-tts",
-			voice,
-			input: text,
-			format: "mp3",
-		});
-		// Node: get ArrayBuffer and convert to Buffer
-		const arrayBuffer = await speech.arrayBuffer();
-		return Buffer.from(arrayBuffer);
-	} catch (e) {
-		const message = e?.message || "";
-		const status = e?.status || e?.response?.status;
-		if (status === 429 || /insufficient_quota/i.test(message)) {
-			const err = new Error(
-				`INSUFFICIENT_QUOTA: ${status || ""} ${message || ""}`.trim()
-			);
-			err.code = "INSUFFICIENT_QUOTA";
-			throw err;
+	// Simple retries for transient network issues
+	for (let attempt = 1; attempt <= 3; attempt++) {
+		try {
+			const speech = await openai.audio.speech.create({
+				model: "gpt-4o-mini-tts",
+				voice,
+				input: text,
+				format: "mp3",
+			});
+			// Node: get ArrayBuffer and convert to Buffer
+			const arrayBuffer = await speech.arrayBuffer();
+			return Buffer.from(arrayBuffer);
+		} catch (e) {
+			const message = e?.message || "";
+			const status = e?.status || e?.response?.status;
+			if (status === 429 || /insufficient_quota/i.test(message)) {
+				const err = new Error(
+					`INSUFFICIENT_QUOTA: ${status || ""} ${message || ""}`.trim()
+				);
+				err.code = "INSUFFICIENT_QUOTA";
+				throw err;
+			}
+			if (/fetch failed/i.test(message) || /ENOTFOUND|ECONNRESET|ETIMEDOUT/i.test(message)) {
+				if (attempt === 3) {
+					const err = new Error("NETWORK_ERROR: Unable to reach OpenAI API");
+					err.code = "NETWORK_ERROR";
+					throw err;
+				}
+				await new Promise((r) => setTimeout(r, 300 * attempt));
+				continue;
+			}
+			throw new Error(`OpenAI TTS error: ${status || ""} ${message}`);
 		}
-		throw new Error(`OpenAI TTS error: ${status || ""} ${message}`);
 	}
 }
 

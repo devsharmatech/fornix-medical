@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Folder,
   Plus,
@@ -19,6 +19,10 @@ import {
   XCircle,
   Eye,
   EyeOff,
+  Venus,
+  Mars,
+  PlayCircle,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -689,6 +693,60 @@ function QuestionCard({
   onEdit,
   onDelete,
 }) {
+  const audioRef = useRef(null);
+  const [isMaleLoading, setIsMaleLoading] = useState(false);
+  const [isFemaleLoading, setIsFemaleLoading] = useState(false);
+
+  const handleVoice = async (voice, generateNew = false) => {
+    try {
+      voice === "female" ? setIsFemaleLoading(true) : setIsMaleLoading(true);
+
+      const existingUrl = voice === "female"
+        ? question.female_explanation_audio_url
+        : question.male_explanation_audio_url;
+
+      if (existingUrl && !generateNew) {
+        if (!audioRef.current) {
+          audioRef.current = new Audio(existingUrl);
+        } else {
+          audioRef.current.pause();
+          audioRef.current.src = existingUrl;
+        }
+        await audioRef.current.play();
+        return;
+      }
+
+      const res = await fetch(`/api/doctor/questions/${question.id}/voice`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voice }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        const errMsg = data?.error || "Failed to generate audio";
+        throw new Error(errMsg);
+      }
+
+      const url = data.url;
+      if (voice === "female") {
+        question.female_explanation_audio_url = url;
+      } else {
+        question.male_explanation_audio_url = url;
+      }
+
+      if (!audioRef.current) {
+        audioRef.current = new Audio(url);
+      } else {
+        audioRef.current.pause();
+        audioRef.current.src = url;
+      }
+      await audioRef.current.play();
+    } catch (e) {
+      toast.error(e.message || "Audio unavailable");
+    } finally {
+      voice === "female" ? setIsFemaleLoading(false) : setIsMaleLoading(false);
+    }
+  };
   const getStatusColor = (status) => {
     switch (status) {
       case "approved":
@@ -867,6 +925,83 @@ function QuestionCard({
           )}
         </div>
       )}
+
+      {/* Audio Controls */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {/* Female controls */}
+        {question.female_explanation_audio_url ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleVoice("female", false)}
+              disabled={isFemaleLoading}
+              className="flex items-center gap-2 text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-3 py-1 rounded-lg disabled:opacity-60 transition-colors"
+              title="Play Female Explanation"
+            >
+              <Venus size={16} />
+              <PlayCircle size={16} />
+              <span className="text-sm">Play (Female)</span>
+            </button>
+            <button
+              onClick={() => handleVoice("female", true)}
+              disabled={isFemaleLoading}
+              className="flex items-center gap-2 text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-3 py-1 rounded-lg disabled:opacity-60 transition-colors"
+              title="Generate New Female Audio"
+            >
+              <Venus size={16} />
+              <RefreshCw size={16} />
+              <span className="text-sm">{isFemaleLoading ? "Generating…" : "Generate New (Female)"}</span>
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => handleVoice("female", true)}
+            disabled={isFemaleLoading}
+            className="flex items-center gap-2 text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-3 py-1 rounded-lg disabled:opacity-60 transition-colors"
+            title="Generate Female Explanation"
+          >
+            <Venus size={16} />
+            <RefreshCw size={16} />
+            <span className="text-sm">{isFemaleLoading ? "Generating Female…" : "Generate Female"}</span>
+          </button>
+        )}
+
+        {/* Male controls */}
+        {question.male_explanation_audio_url ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleVoice("male", false)}
+              disabled={isMaleLoading}
+              className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 px-3 py-1 rounded-lg disabled:opacity-60 transition-colors"
+              title="Play Male Explanation"
+            >
+              <Mars size={16} />
+              <PlayCircle size={16} />
+              <span className="text-sm">Play (Male)</span>
+            </button>
+            <button
+              onClick={() => handleVoice("male", true)}
+              disabled={isMaleLoading}
+              className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 px-3 py-1 rounded-lg disabled:opacity-60 transition-colors"
+              title="Generate New Male Audio"
+            >
+              <Mars size={16} />
+              <RefreshCw size={16} />
+              <span className="text-sm">{isMaleLoading ? "Generating…" : "Generate New (Male)"}</span>
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => handleVoice("male", true)}
+            disabled={isMaleLoading}
+            className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 px-3 py-1 rounded-lg disabled:opacity-60 transition-colors"
+            title="Generate Male Explanation"
+          >
+            <Mars size={16} />
+            <RefreshCw size={16} />
+            <span className="text-sm">{isMaleLoading ? "Generating Male…" : "Generate Male"}</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }

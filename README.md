@@ -63,4 +63,4 @@ Provider:
 
 OpenAI TTS voice customization (optional):
 - `OPENAI_TTS_VOICE_FEMALE` (default: `coral`)
-- `OPENAI_TTS_VOICE_MALE` (default: `alloy`)
+- `OPENAI_TTS_VOICE_MALE` (default: `onyx`)

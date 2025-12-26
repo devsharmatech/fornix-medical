@@ -1,9 +1,9 @@
-import { ensureAdmin } from "@/lib/verifyToken";
+import { ensureDoctor } from "@/lib/verifyToken";
 import { ensureQuestionTts } from "@/lib/ai";
 
 export async function POST(req, { params }) {
 	try {
-		ensureAdmin(req);
+		ensureDoctor(req);
 		const { id } = await params;
 		const { voice } = await req.json();
 
