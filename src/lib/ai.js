@@ -100,6 +100,87 @@ export async function generateExplanationTextIfNeeded(questionId) {
 	return explanation;
 }
 
+export async function generateExplanationTextForced(questionId) {
+	// Fetch question and context
+	const { data: q, error: qErr } = await supabaseAdmin
+		.from("questions")
+		.select("id, question_text")
+		.eq("id", questionId)
+		.single();
+	if (qErr) throw new Error(qErr.message);
+
+	const [{ data: opts, error: optsErr }, { data: correct, error: corrErr }] =
+		await Promise.all([
+			supabaseAdmin
+				.from("question_options")
+				.select("option_key, content")
+				.eq("question_id", questionId)
+				.order("option_key", { ascending: true }),
+			supabaseAdmin
+				.from("correct_answers")
+				.select("correct_key")
+				.eq("question_id", questionId)
+				.single(),
+		]);
+	if (optsErr) throw new Error(optsErr.message);
+	if (corrErr) throw new Error(corrErr.message);
+
+	const optionsText = (opts || [])
+		.map((o) => `${String(o.option_key).toUpperCase()}. ${o.content}`)
+		.join("\n");
+	const correctKey = correct?.correct_key?.toUpperCase?.() || "";
+
+	const prompt = [
+		{
+			role: "system",
+			content:
+				"You are a medical exam tutor. Produce a crisp, professional, step-by-step explanation that teaches reasoning, not fluff. Requirements:\n- Use numbered steps (1., 2., 3., ...)\n- Be direct and instructional (no greetings, no 'as an AI', no filler)\n- Do NOT restate the question verbatim; focus on reasoning\n- Focus on: key clues, governing concept, and precise application\n- Include a brief worked example or analogy (1–2 lines) to illustrate the concept\n- Include an option check: for each provided option key, briefly say why it is correct/incorrect\n- End with a concise takeaway\n- Length target: 120–180 words",
+		},
+		{
+			role: "user",
+			content:
+				`Question:\n${q.question_text}\n\nOptions:\n${optionsText || "N/A"}\n\nCorrect Answer: ${correctKey}\n\nWrite the explanation in this exact outline:\n1) Key clues — list the essential data points that drive the decision.\n2) Core concept — name the rule/pathophysiology that resolves the case.\n3) Apply — connect the clues to the concept to reach the answer.\n4) Worked example — 1–2 lines showing a quick numeric/clinical example or analogy.\n5) Option check — for each existing option key (A–H), one short line: \"<KEY> — <why correct/incorrect>\". Only include options that exist.\n6) Takeaway — one line of what to remember.\nNo preamble. No apologies. No extra sections.`,
+		},
+	];
+
+	let explanation = null;
+	ensureEnv();
+	for (let attempt = 1; attempt <= 3; attempt++) {
+		try {
+			const data = await openai.chat.completions.create({
+				model: "gpt-4o-mini",
+				messages: prompt,
+				temperature: 0.4,
+			});
+			explanation = data?.choices?.[0]?.message?.content?.trim?.() || null;
+			break;
+		} catch (e) {
+			const msg = e?.message || "";
+			if (/fetch failed/i.test(msg) || /ENOTFOUND|ECONNRESET|ETIMEDOUT/i.test(msg)) {
+				if (attempt === 3) {
+					const err = new Error("NETWORK_ERROR: Unable to reach OpenAI API");
+					err.code = "NETWORK_ERROR";
+					throw err;
+				}
+				await new Promise((r) => setTimeout(r, 300 * attempt));
+			} else {
+				break;
+			}
+		}
+	}
+
+	if (!explanation) {
+		explanation = "Explanation unavailable.";
+	}
+
+	await supabaseAdmin
+		.from("questions")
+		.update({ explanation })
+		.eq("id", questionId);
+
+	return explanation;
+}
+
 export async function synthesizeSpeechToBuffer(text, gender) {
 	// Use OpenAI TTS (npm SDK)
 	if (!openai) {
@@ -180,7 +261,7 @@ export async function ensureQuestionTts(questionId, gender) {
 
 	// Upload to Supabase storage
 	const bucket = "question-explanations";
-	const filename = `${questionId}_${gender}.mp3`;
+	const filename = `${questionId}_${gender}_${Date.now()}.mp3`;
 	const { error: upErr } = await supabaseAdmin.storage
 		.from(bucket)
 		.upload(filename, audioBuffer, {
@@ -209,4 +290,47 @@ export async function ensureQuestionTts(questionId, gender) {
 	return publicUrl;
 }
 
+export async function regenerateQuestionTts(questionId, gender) {
+	// Always generate new audio and upsert
+	const { data: q0, error: q0Err } = await supabaseAdmin
+		.from("questions")
+		.select(`id, explanation`)
+		.eq("id", questionId)
+		.single();
+	if (q0Err) throw new Error(q0Err.message);
+
+	const explanationText =
+		q0?.explanation && q0.explanation.trim().length > 0
+			? q0.explanation
+			: await generateExplanationTextForced(questionId);
+
+	const audioBuffer = await synthesizeSpeechToBuffer(explanationText, gender);
+	const bucket = "question-explanations";
+	const filename = `${questionId}_${gender}_${Date.now()}.mp3`;
+	const { error: upErr } = await supabaseAdmin.storage
+		.from(bucket)
+		.upload(filename, audioBuffer, {
+			contentType: "audio/mpeg",
+			upsert: true,
+		});
+	if (upErr) throw new Error(upErr.message);
+
+	const { data: pub } = supabaseAdmin.storage
+		.from(bucket)
+		.getPublicUrl(filename);
+	const publicUrl = pub?.publicUrl;
+	if (!publicUrl) throw new Error("Failed to resolve public URL for audio");
+
+	const updatePayload =
+		gender === "female"
+			? { female_explanation_audio_url: publicUrl }
+			: { male_explanation_audio_url: publicUrl };
+	const { error: updErr } = await supabaseAdmin
+		.from("questions")
+		.update(updatePayload)
+		.eq("id", questionId);
+	if (updErr) throw new Error(updErr.message);
+
+	return publicUrl;
+}
 

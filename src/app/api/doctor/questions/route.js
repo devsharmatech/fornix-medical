@@ -126,7 +126,7 @@ export async function POST(req) {
       .from("questions")
       .select(`
         *,
-        question_options (*),
+        question_options:question_options!question_options_question_id_fkey (*),
         correct_answers (*)
       `)
       .eq("id", question.id)
